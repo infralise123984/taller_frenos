@@ -15,9 +15,10 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 
-# Base de datos local
-db.sqlite3
-db.sqlite3-journal
+# Bases de datos locales (SQLite)
+*.sqlite3
+*.sqlite3-journal
+*.sqlite3-wal
 
 # Estáticos recolectados y archivos subidos
 staticfiles/

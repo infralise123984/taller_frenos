@@ -177,9 +177,91 @@ publicar conviene compilarlo localmente.
   caché no es compartida.
 - Cero secretos en el repositorio: todo llega por variables de entorno.
 
-Pendiente antes de publicar: **restringir `ALLOWED_HOSTS` y
-`DJANGO_CSRF_TRUSTED_ORIGINS`**, compilar Tailwind localmente y definir una
-**CSP** acorde (la CDN de Tailwind obliga a relajarla).
+En producción `ALLOWED_HOSTS` no tiene valores por defecto: hay que declararla, o
+dejar que se detecte dentro de Render. Queda pendiente **compilar Tailwind
+localmente** en vez de usar la CDN, para que el sistema funcione sin internet y
+permita definir una **CSP** estricta.
+
+---
+
+## Despliegue en Render
+
+El repositorio ya trae lo que Render necesita. En el dashboard: *New → Web
+Service*, apuntando a este repositorio.
+
+| Campo | Valor |
+| --- | --- |
+| Language | `Python 3` |
+| Build Command | `./build.sh` |
+| Start Command | `python -m gunicorn config.wsgi:application --bind 0.0.0.0:$PORT` |
+| Health Check Path | `/cuenta/ingresar/` |
+
+El `--bind 0.0.0.0:$PORT` no es decorativo: la documentación de Render exige que
+el servicio escuche en `0.0.0.0` sobre el puerto indicado por `PORT` (10000 por
+defecto), y sin él el despliegue puede fallar al no detectar el puerto.
+
+### Base de datos
+
+Crear una instancia **PostgreSQL** y usar su *Internal Database URL* como
+`DATABASE_URL`.
+
+### Variables de entorno
+
+Render define `PORT` y `RENDER_EXTERNAL_HOSTNAME` por su cuenta. El hostname se
+agrega automáticamente a `ALLOWED_HOSTS` y `CSRF_TRUSTED_ORIGINS`, así que no
+hay que declararlo.
+
+| Variable | Valor |
+| --- | --- |
+| `DJANGO_SECRET_KEY` | Botón *Generate* de Render |
+| `DJANGO_DEBUG` | `False` |
+| `DATABASE_URL` | *Internal Database URL* de la base PostgreSQL |
+| `CACHE_URL` | `dbcache://frenos_cache` |
+| `OTP_PROVIDER` | `local` o `supabase` |
+| `EMAIL_BACKEND` | `django.core.mail.backends.smtp.EmailBackend` (obligatorio si `OTP_PROVIDER=local`) |
+| `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS` | Datos del proveedor SMTP |
+| `DEFAULT_FROM_EMAIL` | Un remitente real, nunca `@localhost` |
+| `DJANGO_TIME_ZONE` | `America/Santiago` |
+
+Si agregas un dominio propio, súmalo a `DJANGO_ALLOWED_HOSTS` **y** a
+`DJANGO_CSRF_TRUSTED_ORIGINS` con esquema (`https://taller.ejemplo.cl`).
+
+### Cuenta inicial
+
+El sistema no crea usuarios en producción. Desde la pestaña *Shell* del servicio:
+
+```bash
+python manage.py createsuperuser
+```
+
+### Dos decisiones que simplifican el despliegue
+
+**Caché en la misma base de datos, sin Redis.** Los límites de intentos de
+acceso necesitan un almacén compartido entre workers, y `dbcache://` lo consigue
+usando la PostgreSQL que ya existe: sin servicio extra, sin costo adicional y
+sobrevive a los reinicios. `build.sh` crea la tabla automáticamente. Si el
+sistema crece, pasar a Redis es cambiar `CACHE_URL` por `redis://…`.
+
+**El OTP puede quedarse en `local`.** No hace falta configurar Supabase para
+publicar: el generador propio ya hashea los códigos con Argon2, los invalida al
+primer uso y los hace expirar. Lo único que el arranque en producción exige es
+un backend de correo que entregue de verdad. Con el de consola el código
+quedaría solo en los logs, así que el sistema se niega a arrancar avisando del
+problema, en lugar de descubrirlo cuando alguien olvide su contraseña.
+
+### Límites del plan gratuito
+
+- El servicio se suspende tras unos minutos sin tráfico: la primera visita
+  después de eso tarda en responder.
+- 512 MB de RAM por instancia. No definas `WEB_CONCURRENCY`; el worker único que
+  gunicorn usa por defecto es lo adecuado para este tamaño.
+- La base PostgreSQL gratuita de Render caduca a los 90 días de creada.
+
+### Versionado de Python
+
+Render usa Python 3.14 por defecto para los servicios creados desde febrero de
+2026. El archivo `.python-version` fija 3.13, que es la versión con la que se
+probó el proyecto y la que usa la CI.
 
 ---
 

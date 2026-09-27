@@ -105,6 +105,11 @@ DATABASE_URL = env("DATABASE_URL", default="")
 
 if DATABASE_URL:
     DATABASES = {"default": env.db_url_config(DATABASE_URL)}
+    # Reutiliza la conexión entre peticiones en lugar de abrir una nueva en cada
+    # una. Los proveedores gestionados (Render incluido) cortan las conexiones
+    # ociosas, así que Django comprueba su salud antes de reutilizarlas.
+    DATABASES["default"]["CONN_MAX_AGE"] = env.int("DB_CONN_MAX_AGE", default=600)
+    DATABASES["default"]["CONN_HEALTH_CHECKS"] = True
 else:
     DATABASES = {
         "default": {

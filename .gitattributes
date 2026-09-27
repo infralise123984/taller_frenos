@@ -4,6 +4,10 @@
 
 * text=auto
 
+# Los scripts de shell deben viajar siempre con LF: un CRLF en el shebang
+# rompe el build en Linux ("bad interpreter: /usr/bin/env bash^M").
+*.sh text eol=lf
+
 *.py text
 *.html text
 *.css text
