@@ -196,9 +196,13 @@ Service*, apuntando a este repositorio.
 | Start Command | `python -m gunicorn config.wsgi:application --bind 0.0.0.0:$PORT` |
 | Health Check Path | `/cuenta/ingresar/` |
 
-El `--bind 0.0.0.0:$PORT` no es decorativo: la documentación de Render exige que
-el servicio escuche en `0.0.0.0` sobre el puerto indicado por `PORT` (10000 por
-defecto), y sin él el despliegue puede fallar al no detectar el puerto.
+El `--bind 0.0.0.0:$PORT` es opcional, pero conviene dejarlo. Sin él gunicorn
+escucha en `127.0.0.1:8000` y Render tiene que deducir el puerto leyendo los
+registros de arranque: suele funcionar —muchos proyectos lo omiten, y la propia
+guía de Django de Render no lo incluye— pero cuando la detección falla el
+despliegue se rechaza con un error poco claro. Con el `--bind` el servicio
+escucha donde Render lo espera (`0.0.0.0`, puerto indicado por `PORT`, que vale
+10000 por defecto) y no queda nada que adivinar.
 
 ### Base de datos
 
