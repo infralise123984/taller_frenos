@@ -6,6 +6,10 @@ Es idempotente: puede ejecutarse varias veces sin duplicar registros.
 Uso:
     python manage.py seed_demo
     python manage.py seed_demo --email recepcion@taller.cl --password "..." --reset
+
+El correo y la contraseña también se pueden indicar con las variables de entorno
+DEMO_EMAIL y DEMO_PASSWORD. Es como lo usa build.sh en Render, donde no hay Shell
+donde pasar argumentos.
 """
 
 from __future__ import annotations
@@ -106,7 +110,9 @@ class Command(BaseCommand):
 
     def add_arguments(self, parser) -> None:
         parser.add_argument(
-            "--email", default="taller@ejemplo.cl", help="Correo del usuario de acceso."
+            "--email",
+            default=os.environ.get("DEMO_EMAIL", "taller@ejemplo.cl"),
+            help="Correo del usuario de acceso. También se lee de DEMO_EMAIL.",
         )
         parser.add_argument(
             "--password",

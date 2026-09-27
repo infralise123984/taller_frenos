@@ -225,6 +225,7 @@ hay que declararlo.
 | `DJANGO_SETTINGS_MODULE` | `config.settings.prod` (ver abajo) |
 | `SEED_DEMO` | `true` **solo** en despliegues de demostración |
 | `DEMO_PASSWORD` | Contraseña del usuario de demostración |
+| `DEMO_EMAIL` | Correo del usuario de demostración (por defecto `taller@ejemplo.cl`) |
 
 `DJANGO_SETTINGS_MODULE` no hace falta para servir tráfico —`config/wsgi.py` ya
 usa los ajustes de producción— pero sí para los comandos que ejecutes en la
@@ -235,30 +236,40 @@ Si agregas un dominio propio, súmalo a `DJANGO_ALLOWED_HOSTS` **y** a
 
 ### Cuenta inicial
 
-El sistema no crea usuarios en producción. Desde la pestaña *Shell* del servicio:
+El sistema no crea usuarios en producción.
+
+En un plan **pago**, desde la pestaña *Shell* del servicio:
 
 ```bash
 python manage.py createsuperuser
 ```
+
+En un plan **gratuito no hay Shell**, así que la cuenta tiene que crearla el
+build: usa `SEED_DEMO=true` y `DEMO_PASSWORD` (ver abajo).
 
 ### Mostrar el mockup con datos de ejemplo
 
 Una base recién creada está vacía, así que la pantalla de búsqueda no mostraría
 nada. Para una demostración hay dos caminos.
 
-**Automático.** Define `SEED_DEMO=true` entre las variables de entorno: cada
-despliegue cargará los clientes, vehículos y visitas de ejemplo. Si además
-defines `DEMO_PASSWORD` sabrás la contraseña de antemano; si no, se genera una
-al azar que aparece una sola vez en los registros del build.
+**Automático, y la única opción en el plan gratuito.** Define `SEED_DEMO=true`
+entre las variables de entorno: cada despliegue cargará los clientes, vehículos
+y visitas de ejemplo.
 
 ```ini
 SEED_DEMO=true
 DEMO_PASSWORD=<una contraseña que recuerdes>
+DEMO_EMAIL=<un correo tuyo, si vas a probar el acceso con código>
 ```
 
-El acceso queda con el correo `taller@ejemplo.cl`.
+`DEMO_PASSWORD` conviene definirla: si se omite, se genera una al azar que
+aparece una sola vez en los registros del build.
 
-**Manual.** Desde la pestaña *Shell*:
+`DEMO_EMAIL` importa si vas a demostrar el acceso con código, porque el valor
+predeterminado es `taller@ejemplo.cl`, un dominio que no existe: el código nunca
+llegaría.
+
+**Manual, solo con plan pago.** Desde la pestaña *Shell*:
 
 ```bash
 python manage.py seed_demo
@@ -280,20 +291,42 @@ usando la PostgreSQL que ya existe: sin servicio extra, sin costo adicional y
 sobrevive a los reinicios. `build.sh` crea la tabla automáticamente. Si el
 sistema crece, pasar a Redis es cambiar `CACHE_URL` por `redis://…`.
 
-**El OTP puede quedarse en `local`.** No hace falta configurar Supabase para
-publicar: el generador propio ya hashea los códigos con Argon2, los invalida al
-primer uso y los hace expirar. Lo único que el arranque en producción exige es
-un backend de correo que entregue de verdad. Con el de consola el código
-quedaría solo en los logs, así que el sistema se niega a arrancar avisando del
-problema, en lugar de descubrirlo cuando alguien olvide su contraseña.
+**El generador de códigos de Django sirve en producción, pero el correo tiene
+que poder salir.** Ya hashea los códigos con Argon2, los invalida al primer uso y
+los hace expirar. Lo que el arranque exige es un backend de correo real; con el
+de consola el código quedaría solo en los logs, así que el sistema se niega a
+arrancar avisando, en lugar de fallar el día que alguien olvide su contraseña.
+
+Eso sí: **un servicio web gratuito de Render no puede enviar tráfico saliente por
+los puertos 25, 465 ni 587**, que son los de SMTP. Con `OTP_PROVIDER=local` la
+aplicación arranca bien y el envío falla recién en tiempo de ejecución. En el plan
+gratuito, la opción que funciona es `OTP_PROVIDER=supabase`, que viaja por HTTPS.
+
+### ¿Hace falta una base de datos?
+
+Sí, y no puede ser SQLite. Ahí viven los clientes, vehículos, visitas, usuarios,
+sesiones y los contadores de intentos de acceso. El sistema de archivos de un
+servicio web de Render es efímero —se borra en cada despliegue, reinicio o
+suspensión—, así que un archivo SQLite perdería todo cada vez.
+
+Basta con la base PostgreSQL gratuita de Render, creada desde el mismo panel. Si
+necesitas que siga existiendo más de 30 días, hay que pasarla a un plan pago o
+usar un PostgreSQL externo (Supabase, Neon) como `DATABASE_URL`.
 
 ### Límites del plan gratuito
 
-- El servicio se suspende tras unos minutos sin tráfico: la primera visita
-  después de eso tarda en responder.
+- El servicio se suspende tras 15 minutos sin tráfico y tarda cerca de un minuto
+  en volver. Conviene abrir la URL antes de mostrársela a alguien.
+- **La base PostgreSQL gratuita caduca 30 días después de crearla.** Hay 14 días
+  de gracia para pasarla a un plan pago; después Render la elimina con todos sus
+  datos. Solo se admite una base gratuita por espacio de trabajo, de 1 GB y sin
+  respaldos.
+- **No hay acceso a Shell**, por eso los datos de ejemplo deben cargarse con
+  `SEED_DEMO=true` durante el build.
+- No se puede enviar correo por SMTP (puertos 25, 465 y 587 bloqueados).
 - 512 MB de RAM por instancia. No definas `WEB_CONCURRENCY`; el worker único que
   gunicorn usa por defecto es lo adecuado para este tamaño.
-- La base PostgreSQL gratuita de Render caduca a los 90 días de creada.
+- El plan incluye 750 horas de instancia al mes por espacio de trabajo.
 
 ### Versionado de Python
 
