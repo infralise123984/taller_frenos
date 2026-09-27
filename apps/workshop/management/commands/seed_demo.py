@@ -111,7 +111,7 @@ class Command(BaseCommand):
     def add_arguments(self, parser) -> None:
         parser.add_argument(
             "--email",
-            default=os.environ.get("DEMO_EMAIL", "taller@ejemplo.cl"),
+            default=os.environ.get("DEMO_EMAIL", "").strip() or "taller@ejemplo.cl",
             help="Correo del usuario de acceso. También se lee de DEMO_EMAIL.",
         )
         parser.add_argument(
