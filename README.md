@@ -197,6 +197,11 @@ localización chilena.
 Las pruebas de vistas usan un proveedor de OTP falso, de modo que no dependen de
 red ni de credenciales.
 
+GitHub Actions ejecuta estas mismas verificaciones (`ruff check`,
+`ruff format --check` y las pruebas) en cada push a `main` y en cada pull
+request. El flujo no necesita archivo `.env`: los valores por defecto de
+`config/settings/dev.py` bastan para probar.
+
 ---
 
 ## Decisiones abiertas para la entrevista
