@@ -1,9 +1,11 @@
 name: CI
 
-# Se ejecuta en cada push a main y en cada pull request que apunte a main.
+# Se ejecuta en cada push a main o desarrollo, y en cada pull request que
+# apunte a main. Así el trabajo en curso se valida antes de llegar al
+# pull request, no recién cuando ya está listo para integrarse.
 on:
   push:
-    branches: [main]
+    branches: [main, desarrollo]
   pull_request:
     branches: [main]
 
