@@ -222,6 +222,13 @@ hay que declararlo.
 | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS` | Datos del proveedor SMTP |
 | `DEFAULT_FROM_EMAIL` | Un remitente real, nunca `@localhost` |
 | `DJANGO_TIME_ZONE` | `America/Santiago` |
+| `DJANGO_SETTINGS_MODULE` | `config.settings.prod` (ver abajo) |
+| `SEED_DEMO` | `true` **solo** en despliegues de demostración |
+| `DEMO_PASSWORD` | Contraseña del usuario de demostración |
+
+`DJANGO_SETTINGS_MODULE` no hace falta para servir tráfico —`config/wsgi.py` ya
+usa los ajustes de producción— pero sí para los comandos que ejecutes en la
+pestaña *Shell*: sin esa variable, `manage.py` usaría los ajustes de desarrollo.
 
 Si agregas un dominio propio, súmalo a `DJANGO_ALLOWED_HOSTS` **y** a
 `DJANGO_CSRF_TRUSTED_ORIGINS` con esquema (`https://taller.ejemplo.cl`).
@@ -233,6 +240,37 @@ El sistema no crea usuarios en producción. Desde la pestaña *Shell* del servic
 ```bash
 python manage.py createsuperuser
 ```
+
+### Mostrar el mockup con datos de ejemplo
+
+Una base recién creada está vacía, así que la pantalla de búsqueda no mostraría
+nada. Para una demostración hay dos caminos.
+
+**Automático.** Define `SEED_DEMO=true` entre las variables de entorno: cada
+despliegue cargará los clientes, vehículos y visitas de ejemplo. Si además
+defines `DEMO_PASSWORD` sabrás la contraseña de antemano; si no, se genera una
+al azar que aparece una sola vez en los registros del build.
+
+```ini
+SEED_DEMO=true
+DEMO_PASSWORD=<una contraseña que recuerdes>
+```
+
+El acceso queda con el correo `taller@ejemplo.cl`.
+
+**Manual.** Desde la pestaña *Shell*:
+
+```bash
+python manage.py seed_demo
+python manage.py seed_demo --reset   # borra los datos de ejemplo y los recrea
+```
+
+> `seed_demo` crea un **superusuario**. Úsalo solo en un despliegue de
+demostración: en un servicio con datos reales, deja `SEED_DEMO` sin definir y
+crea la cuenta con `createsuperuser`.
+
+La carga es idempotente: volver a ejecutarla no duplica registros ni pisa la
+contraseña ya creada.
 
 ### Dos decisiones que simplifican el despliegue
 

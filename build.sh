@@ -34,4 +34,13 @@ case "${CACHE_URL:-}" in
     ;;
 esac
 
+# Datos de ejemplo para mostrar el sistema. Está desactivado por defecto: una
+# base de datos con información real no debe recibir registros de fantasía.
+# Actívalo solo en un despliegue de demostración, definiendo SEED_DEMO=true.
+# El comando es idempotente, así que puede quedar activo entre despliegues.
+if [ "${SEED_DEMO:-false}" = "true" ]; then
+  echo "==> Cargando datos de demostración"
+  python manage.py seed_demo
+fi
+
 echo "==> Build completado"
