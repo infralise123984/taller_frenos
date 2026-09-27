@@ -3,7 +3,7 @@
 from django.contrib import admin
 from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
 
-from apps.accounts.models import OtpChallenge, User
+from apps.accounts.models import Invitacion, OtpChallenge, User
 
 
 @admin.register(User)
@@ -60,3 +60,36 @@ class OtpChallengeAdmin(admin.ModelAdmin):
 
     def get_readonly_fields(self, request, obj=None) -> tuple[str, ...]:
         return tuple(field.name for field in self.model._meta.fields)
+
+
+@admin.register(Invitacion)
+class InvitacionAdmin(admin.ModelAdmin):
+    """
+    Solo lectura: las invitaciones se emiten desde la aplicación, donde el
+    enlace se entrega una sola vez y no queda almacenado.
+    """
+
+    list_display = ("email", "invited_by", "created_at", "expires_at", "estado")
+    list_select_related = ("invited_by",)
+    list_filter = ("created_at",)
+    search_fields = ("email", "invited_by__email")
+    date_hierarchy = "created_at"
+
+    def has_add_permission(self, request) -> bool:
+        return False
+
+    def has_change_permission(self, request, obj=None) -> bool:
+        return False
+
+    def get_readonly_fields(self, request, obj=None) -> tuple[str, ...]:
+        return tuple(field.name for field in self.model._meta.fields)
+
+    @admin.display(description="estado")
+    def estado(self, obj: Invitacion) -> str:
+        if obj.accepted_at:
+            return "aceptada"
+        if obj.revoked_at:
+            return "revocada"
+        if obj.is_expired:
+            return "expirada"
+        return "pendiente"

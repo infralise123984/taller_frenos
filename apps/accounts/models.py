@@ -183,3 +183,91 @@ class OtpChallenge(models.Model):
         cutoff = timezone.now() - timedelta(days=days)
         deleted, _ = cls.objects.filter(created_at__lt=cutoff).delete()
         return deleted
+
+
+# ---------------------------------------------------------------------------
+# Invitaciones
+# ---------------------------------------------------------------------------
+
+
+class InvitacionQuerySet(models.QuerySet):
+    def vigentes(self):
+        """Ni usadas, ni revocadas, ni expiradas."""
+        return self.filter(
+            accepted_at__isnull=True,
+            revoked_at__isnull=True,
+            expires_at__gt=timezone.now(),
+        )
+
+    def for_email(self, email: str):
+        return self.filter(email__iexact=email.strip())
+
+    def purge_older_than(self, *, days: int = 30) -> int:
+        """Elimina invitaciones antiguas. Pensado para una tarea programada."""
+        cutoff = timezone.now() - timedelta(days=days)
+        deleted, _ = self.filter(created_at__lt=cutoff).delete()
+        return deleted
+
+
+class Invitacion(models.Model):
+    """
+    Permiso para crear una cuenta, emitido por alguien que ya tiene acceso.
+
+    El sistema es de uso interno, así que no existe registro público: la única
+    forma de obtener una cuenta es que otra persona autorizada la invite.
+
+    El token viaja en el enlace que se entrega a la persona invitada y **nunca
+    se guarda tal cual**, solo su hash SHA-256. A diferencia de un código de seis
+    dígitos, aquí el secreto tiene 256 bits de entropía y no es adivinable por
+    fuerza bruta, así que un hash rápido es lo adecuado; encarecerlo con Argon2
+    solo añadiría latencia sin ganar seguridad.
+    """
+
+    email = models.EmailField("correo", db_index=True)
+    token_hash = models.CharField("hash del token", max_length=64, unique=True)
+    invited_by = models.ForeignKey(
+        User,
+        on_delete=models.PROTECT,
+        related_name="invitaciones_enviadas",
+        verbose_name="invitada por",
+    )
+    expires_at = models.DateTimeField("expira el")
+    accepted_at = models.DateTimeField("aceptada el", null=True, blank=True)
+    revoked_at = models.DateTimeField("revocada el", null=True, blank=True)
+    created_at = models.DateTimeField("emitida el", auto_now_add=True)
+
+    objects = InvitacionQuerySet.as_manager()
+
+    class Meta:
+        verbose_name = "invitación"
+        verbose_name_plural = "invitaciones"
+        ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["email", "-created_at"], name="invit_email_created_idx"),
+        ]
+
+    def __str__(self) -> str:
+        return f"Invitación para {self.email}"
+
+    # -- Estado ------------------------------------------------------------
+
+    @property
+    def is_expired(self) -> bool:
+        return self.expires_at <= timezone.now()
+
+    @property
+    def is_usable(self) -> bool:
+        return self.accepted_at is None and self.revoked_at is None and not self.is_expired
+
+    # -- Transiciones de estado -------------------------------------------
+
+    def revoke(self) -> None:
+        """Anula la invitación. Se usa al emitir una nueva para el mismo correo."""
+        now = timezone.now()
+        type(self).objects.filter(pk=self.pk).update(revoked_at=now)
+        self.revoked_at = now
+
+    def accept(self) -> None:
+        now = timezone.now()
+        type(self).objects.filter(pk=self.pk).update(accepted_at=now)
+        self.accepted_at = now

@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+
+{% block title %}Enlace no válido · Taller de Frenos{% endblock %}
+
+{% block chrome %}{% endblock %}
+
+{% block content %}
+<div class="mx-auto w-full max-w-md py-6 sm:py-14">
+
+  <div class="rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
+    <div class="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-2xl bg-amber-100 text-2xl">!</div>
+
+    <h1 class="text-xl font-bold text-slate-900">Este enlace ya no sirve</h1>
+
+    {# Un solo mensaje para todos los casos: no existe, ya se usó, fue anulado o
+       expiró. Quien lo abre no gana nada sabiendo cuál de ellos ocurrió. #}
+    <p class="mt-2 text-sm text-slate-500">
+      Los enlaces de invitación sirven una sola vez y vencen a los pocos días.
+      Pide que te emitan uno nuevo.
+    </p>
+
+    <a href="{% url 'accounts:login' %}"
+       class="mt-6 inline-flex items-center justify-center rounded-xl bg-sky-700 px-6 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-sky-800">
+      Ir al ingreso
+    </a>
+  </div>
+
+</div>
+{% endblock %}

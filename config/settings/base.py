@@ -205,6 +205,10 @@ SUPABASE_OTP_CREATE_USER = env.bool("SUPABASE_OTP_CREATE_USER", default=False)
 LOGIN_MAX_FAILED_ATTEMPTS = env.int("LOGIN_MAX_FAILED_ATTEMPTS", default=5)
 LOGIN_LOCKOUT_SECONDS = env.int("LOGIN_LOCKOUT_SECONDS", default=900)
 
+# Vigencia de los enlaces de invitación. Largo a propósito: nadie revisa el
+# correo al instante y volver a invitar es barato.
+INVITACION_TTL_DIAS = env.int("INVITACION_TTL_DIAS", default=7)
+
 # Confiar en cabeceras de proxy (X-Forwarded-For) para identificar la IP real.
 # Solo activar si el sistema está detrás de un proxy propio; de lo contrario un
 # cliente podría falsificar su IP y evadir los límites de intentos.

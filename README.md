@@ -64,6 +64,31 @@ templates/            base + parciales + una plantilla por pantalla
 
 ## Acceso al sistema
 
+### Creación de cuentas
+
+No hay registro público: el sistema es de uso interno, así que el acceso lo
+concede alguien que ya está dentro. Únicamente el personal con acceso al panel
+(`is_staff`) puede emitir invitaciones, desde la pantalla **Cuentas**.
+
+Esa persona escribe el correo de la nueva cuenta y obtiene un enlace de un solo
+uso, válido `INVITACION_TTL_DIAS` días (7 por defecto). El enlace **se muestra
+siempre en pantalla**, además de enviarse por correo, y por eso funciona incluso
+en el plan gratuito de Render, donde el SMTP está bloqueado: allí el correo no
+sale y basta con entregar el enlace por otra vía. La persona lo abre, elige su
+contraseña y queda dentro, ya con la sesión iniciada.
+
+Detalles que conviene conocer:
+
+- Las cuentas nuevas entran como **usuarias normales**, sin acceso al panel de
+  administración: no lo necesitan para el trabajo del mesón.
+- El token no se guarda nunca en claro, solo su hash SHA-256. Aquí sí basta un
+  hash rápido, a diferencia del código de seis dígitos: 32 bytes aleatorios no
+  son adivinables por fuerza bruta.
+- Emitir una invitación nueva para el mismo correo **anula la anterior**.
+- Si el correo ya tiene cuenta, la invitación se rechaza en el formulario.
+
+### Entrar al sistema
+
 Hay dos caminos, ambos terminan creando **una sesión de Django**:
 
 ### 1. Correo y contraseña
@@ -240,7 +265,9 @@ Si agregas un dominio propio, súmalo a `DJANGO_ALLOWED_HOSTS` **y** a
 
 ### Cuenta inicial
 
-El sistema no crea usuarios en producción.
+El sistema no crea usuarios en producción, y la primera cuenta es el único caso
+que no puede resolverse con una invitación, porque hace falta estar dentro para
+invitar.
 
 En un plan **pago**, desde la pestaña *Shell* del servicio:
 
@@ -248,8 +275,9 @@ En un plan **pago**, desde la pestaña *Shell* del servicio:
 python manage.py createsuperuser
 ```
 
-En un plan **gratuito no hay Shell**, así que la cuenta tiene que crearla el
-build: usa `SEED_DEMO=true` y `DEMO_PASSWORD` (ver abajo).
+En un plan **gratuito no hay Shell**, así que esa primera cuenta la crea el
+build: usa `SEED_DEMO=true` y `DEMO_PASSWORD` (ver abajo). A partir de ahí, todas
+las cuentas siguientes se crean invitando desde la aplicación.
 
 ### Mostrar el mockup con datos de ejemplo
 

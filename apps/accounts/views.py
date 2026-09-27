@@ -13,6 +13,7 @@ from django.contrib import messages
 from django.contrib.auth import login as auth_login
 from django.contrib.auth import logout as auth_logout
 from django.contrib.auth.decorators import login_not_required
+from django.core.exceptions import PermissionDenied
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
@@ -23,11 +24,20 @@ from apps.accounts.exceptions import (
     AccountInactiveError,
     AccountLockedError,
     AuthenticationDomainError,
+    CorreoYaRegistradoError,
     InvalidCredentialsError,
+    InvitacionInvalidaError,
     OtpThrottledError,
 )
-from apps.accounts.forms import OtpRequestForm, OtpVerifyForm, PasswordLoginForm
-from apps.accounts.services import build_login_service, get_client_ip
+from apps.accounts.forms import (
+    DefinirContrasenaForm,
+    InvitacionForm,
+    OtpRequestForm,
+    OtpVerifyForm,
+    PasswordLoginForm,
+)
+from apps.accounts.models import Invitacion, User
+from apps.accounts.services import build_invitacion_service, build_login_service, get_client_ip
 
 logger = logging.getLogger(__name__)
 
@@ -241,3 +251,89 @@ def logout_view(request: HttpRequest) -> HttpResponse:
     auth_logout(request)
     messages.info(request, "Cerraste sesión correctamente.")
     return redirect("accounts:login")
+
+
+# ---------------------------------------------------------------------------
+# Invitaciones
+#
+# El sistema es de uso interno y no tiene registro público: la única forma de
+# obtener una cuenta es que alguien que ya está dentro la invite.
+# ---------------------------------------------------------------------------
+
+INVITACIONES_TEMPLATE = "accounts/invitaciones.html"
+INVITACION_INVALIDA_TEMPLATE = "accounts/invitacion_invalida.html"
+GENERIC_INVITACION_ERROR = "No pudimos emitir la invitación. Intenta nuevamente."
+
+
+def invitaciones(request: HttpRequest) -> HttpResponse:
+    """Emite invitaciones y muestra las que siguen pendientes."""
+    if not request.user.is_staff:
+        # Denegación por defecto: invitar concede acceso al sistema, así que no
+        # basta con estar autenticado. El enlace del token nunca se persiste en
+        # claro, por eso se muestra una sola vez aquí.
+        raise PermissionDenied("Solo el personal con acceso al panel puede invitar.")
+
+    form = InvitacionForm(request.POST or None)
+    emitida = None
+
+    if request.method == "POST" and form.is_valid():
+        try:
+            emitida = build_invitacion_service().invitar(
+                email=form.cleaned_data["email"],
+                invitado_por=request.user,
+                base_url=request.build_absolute_uri("/"),
+            )
+        except CorreoYaRegistradoError as exc:
+            form.add_error("email", str(exc))
+        except AuthenticationDomainError:
+            logger.exception("Fallo al emitir una invitación.")
+            messages.error(request, GENERIC_INVITACION_ERROR)
+        else:
+            form = InvitacionForm()
+
+    contexto = {
+        "form": form,
+        "emitida": emitida,
+        "pendientes": Invitacion.objects.vigentes().select_related("invited_by"),
+    }
+    return render(request, INVITACIONES_TEMPLATE, contexto)
+
+
+@login_not_required
+def aceptar_invitacion(request: HttpRequest, token: str) -> HttpResponse:
+    """Pantalla donde la persona invitada define su contraseña."""
+    if request.user.is_authenticated:
+        return redirect("workshop:buscar")
+
+    servicio = build_invitacion_service()
+
+    try:
+        invitacion = servicio.obtener_utilizable(token)
+    except InvitacionInvalidaError:
+        return render(request, INVITACION_INVALIDA_TEMPLATE, status=410)
+
+    # El formulario necesita un usuario para el validador de similitud; todavía
+    # no está guardado, solo sirve de contexto para comparar.
+    form = DefinirContrasenaForm(User(email=invitacion.email), request.POST or None)
+
+    if request.method == "POST" and form.is_valid():
+        try:
+            usuario = servicio.aceptar(token=token, password=form.cleaned_data["new_password1"])
+        except InvitacionInvalidaError:
+            return render(request, INVITACION_INVALIDA_TEMPLATE, status=410)
+        except CorreoYaRegistradoError:
+            messages.error(
+                request,
+                "Ese correo ya tiene una cuenta. Ingresa con tu contraseña.",
+            )
+            return redirect("accounts:login")
+        else:
+            auth_login(request, usuario)
+            messages.success(request, "Tu cuenta está lista. Bienvenida/o al sistema.")
+            return redirect("workshop:buscar")
+
+    return render(
+        request,
+        "accounts/invitacion_aceptar.html",
+        {"form": form, "invitacion": invitacion},
+    )

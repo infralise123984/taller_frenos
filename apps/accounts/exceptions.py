@@ -59,3 +59,25 @@ class OtpInvalidError(OtpError):
 
 class OtpVerificationUnavailableError(OtpError):
     """No fue posible verificar el código por un fallo del proveedor."""
+
+
+# ---------------------------------------------------------------------------
+# Invitaciones
+# ---------------------------------------------------------------------------
+
+
+class InvitacionError(AuthenticationDomainError):
+    """Error base del flujo de invitaciones."""
+
+
+class InvitacionInvalidaError(InvitacionError):
+    """El enlace no corresponde a ninguna invitación utilizable.
+
+    Cubre todos los casos por igual, a propósito: si el enlace no existe, ya se
+    usó, fue anulado o expiró, la persona que lo abre no gana nada sabiendo cuál
+    de esas cosas ocurrió.
+    """
+
+
+class CorreoYaRegistradoError(InvitacionError):
+    """Ya existe una cuenta con ese correo, así que no hay nada que invitar."""
