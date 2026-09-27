@@ -1,0 +1,21 @@
+{% comment %}
+  Campo de formulario con etiqueta, ayuda y errores.
+  Uso: {% include "partials/_field.html" with field=form.email %}
+  Nota: los comentarios {# #} de Django no admiten varias líneas, así que
+  cualquier ejemplo con etiquetas debe ir dentro de {% comment %}.
+{% endcomment %}
+<div class="mb-4">
+  <label for="{{ field.id_for_label }}" class="mb-1.5 block text-sm font-medium text-slate-700">
+    {{ field.label }}{% if field.field.required %}<span class="text-red-600" aria-hidden="true"> *</span>{% endif %}
+  </label>
+
+  {{ field }}
+
+  {% if field.help_text %}
+    <p class="mt-1 text-xs text-slate-500">{{ field.help_text }}</p>
+  {% endif %}
+
+  {% for error in field.errors %}
+    <p class="mt-1 text-sm font-medium text-red-700">{{ error }}</p>
+  {% endfor %}
+</div>

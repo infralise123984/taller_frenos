@@ -1,0 +1,114 @@
+{% extends "base.html" %}
+
+{% block title %}Registrar ingreso · Taller de Frenos{% endblock %}
+
+{% block content %}
+
+  <a href="{% url 'workshop:buscar' %}" class="mb-4 inline-block text-sm font-medium text-sky-700 hover:underline">
+    ← Volver a la búsqueda
+  </a>
+
+  <h1 class="mb-1 text-2xl font-bold text-slate-900">Registrar ingreso</h1>
+  <p class="mb-6 text-sm text-slate-500">
+    Todo el ingreso se completa en esta pantalla: vehículo, dueño y trabajo realizado.
+  </p>
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+      <div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-900">
+        {{ form.non_field_errors }}
+      </div>
+    {% endif %}
+
+    {# ------------------------------- Vehículo -------------------------------- #}
+    <section class="mb-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <h2 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">Vehículo</h2>
+
+      {% include "partials/_field.html" with field=form.patente %}
+
+      <div class="grid gap-x-4 sm:grid-cols-2">
+        {% include "partials/_field.html" with field=form.marca %}
+        {% include "partials/_field.html" with field=form.modelo %}
+      </div>
+      <div class="grid gap-x-4 sm:grid-cols-2">
+        {% include "partials/_field.html" with field=form.anio %}
+        {% include "partials/_field.html" with field=form.color %}
+      </div>
+    </section>
+
+    {# -------------------------------- Cliente -------------------------------- #}
+    <section class="mb-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <h2 class="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500">Dueño del vehículo</h2>
+      <p class="mb-4 text-xs text-slate-400">
+        Si el teléfono ya está registrado, se reutiliza la ficha del cliente.
+      </p>
+
+      {% include "partials/_field.html" with field=form.cliente_nombre %}
+      {% include "partials/_field.html" with field=form.cliente_telefono %}
+      {% include "partials/_field.html" with field=form.cliente_email %}
+    </section>
+
+    {# --------------------------------- Visita -------------------------------- #}
+    <section class="mb-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <h2 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">Visita de hoy</h2>
+
+      <div class="grid gap-x-4 sm:grid-cols-2">
+        {% include "partials/_field.html" with field=form.fecha_ingreso %}
+        {% include "partials/_field.html" with field=form.kilometraje %}
+      </div>
+
+      <fieldset class="mb-4">
+        <legend class="mb-2 block text-sm font-medium text-slate-700">{{ form.trabajos.label }}</legend>
+
+        <div class="grid grid-cols-2 gap-2 sm:grid-cols-3">
+          {% for opcion in form.grouped_trabajos %}
+            <label class="relative cursor-pointer">
+              <input type="checkbox"
+                     name="trabajos"
+                     value="{{ opcion.value }}"
+                     class="trabajo-checkbox peer"
+                     {% if opcion.checked %}checked{% endif %}>
+              <span class="flex h-full min-h-16 select-none items-center justify-center rounded-xl border-2 border-slate-200 bg-white px-3 py-3 text-center text-sm font-medium text-slate-600 transition hover:border-slate-300 peer-checked:border-sky-600 peer-checked:bg-sky-50 peer-checked:text-sky-900 peer-focus-visible:ring-2 peer-focus-visible:ring-sky-300 peer-focus-visible:ring-offset-2">
+                {{ opcion.label }}
+              </span>
+            </label>
+          {% endfor %}
+        </div>
+
+        {% for error in form.trabajos.errors %}
+          <p class="mt-2 text-sm font-medium text-red-700">{{ error }}</p>
+        {% endfor %}
+      </fieldset>
+
+      {% include "partials/_field.html" with field=form.observaciones %}
+    </section>
+
+    {# ------------------------- Próxima mantención ---------------------------- #}
+    <section class="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+      <h2 class="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500">Próxima mantención</h2>
+      <p class="mb-4 text-xs text-slate-400">
+        Opcional. Queda en el historial para recordarle al cliente cuándo volver.
+      </p>
+
+      <div class="grid gap-x-4 sm:grid-cols-2">
+        {% include "partials/_field.html" with field=form.proxima_mantencion_km %}
+        {% include "partials/_field.html" with field=form.proxima_mantencion_fecha %}
+      </div>
+    </section>
+
+    <div class="flex flex-col gap-3 sm:flex-row-reverse">
+      <button type="submit"
+              class="inline-flex w-full items-center justify-center rounded-xl bg-sky-700 px-6 py-4 text-lg font-semibold text-white shadow-sm transition hover:bg-sky-800 focus:outline-none focus:ring-2 focus:ring-sky-300 focus:ring-offset-2 sm:w-auto sm:px-8">
+        Guardar ingreso
+      </button>
+      <a href="{% url 'workshop:buscar' %}"
+         class="inline-flex w-full items-center justify-center rounded-xl border border-slate-300 bg-white px-6 py-4 text-lg font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 sm:w-auto">
+        Cancelar
+      </a>
+    </div>
+
+  </form>
+
+{% endblock %}

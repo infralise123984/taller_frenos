@@ -1,0 +1,44 @@
+name: CI
+
+# Se ejecuta en cada push a main y en cada pull request que apunte a main.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# Si llega un push nuevo mientras la ejecución anterior sigue en curso, la
+# cancela: no tiene sentido validar una revisión ya obsoleta.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verificaciones:
+    name: Pruebas y estilo
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Preparar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements/*.txt
+
+      - name: Instalar dependencias
+        run: pip install -r requirements/dev.txt
+
+      - name: Análisis estático
+        run: ruff check .
+
+      - name: Verificar formato
+        run: ruff format --check .
+
+      # No se necesita archivo .env: config/settings/dev.py trae valores por
+      # defecto para desarrollo y las pruebas no tocan servicios externos.
+      - name: Pruebas
+        run: python manage.py test --verbosity 2

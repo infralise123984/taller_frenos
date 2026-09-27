@@ -1,0 +1,28 @@
+{% load static %}<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>{% block title %}Taller de Frenos{% endblock %}</title>
+
+  {% comment %}
+    Tailwind vía CDN: acelera la maquetación del mockup, pero requiere conexión
+    a internet y obliga a relajar la CSP. Antes de publicar se compila local.
+  {% endcomment %}
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{% static 'css/app.css' %}">
+</head>
+<body class="min-h-screen bg-slate-100 text-slate-900 antialiased">
+
+  {% block chrome %}
+    {% include "partials/_nav.html" %}
+  {% endblock %}
+
+  <main class="mx-auto w-full max-w-5xl px-4 py-6 sm:px-6 lg:py-8">
+    {% include "partials/_messages.html" %}
+    {% block content %}{% endblock %}
+  </main>
+
+</body>
+</html>

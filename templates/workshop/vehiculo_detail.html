@@ -1,0 +1,98 @@
+{% extends "base.html" %}
+{% load humanize telefonos %}
+
+{% block title %}{{ vehiculo.patente }} · Taller de Frenos{% endblock %}
+
+{% block content %}
+
+  <a href="{% url 'workshop:buscar' %}" class="no-print mb-4 inline-block text-sm font-medium text-sky-700 hover:underline">
+    ← Volver a la búsqueda
+  </a>
+
+  {# --------------------------- Cabecera del vehículo --------------------------- #}
+  <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+    <div class="flex flex-wrap items-start justify-between gap-4">
+      <div>
+        <p class="text-4xl font-black tracking-[0.2em] text-slate-900">{{ vehiculo.patente }}</p>
+        <p class="mt-1 text-slate-500">{{ vehiculo.descripcion_corta }}{% if vehiculo.color %} · {{ vehiculo.color }}{% endif %}</p>
+      </div>
+
+      <a href="{% url 'workshop:ingreso_create' %}?patente={{ vehiculo.patente }}"
+         class="no-print inline-flex items-center justify-center rounded-xl bg-sky-700 px-5 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-sky-800">
+        + Registrar nueva visita
+      </a>
+    </div>
+
+    <dl class="mt-5 grid gap-4 border-t border-slate-100 pt-5 sm:grid-cols-3">
+      <div>
+        <dt class="text-xs font-semibold uppercase tracking-wide text-slate-400">Visitas registradas</dt>
+        <dd class="mt-0.5 text-2xl font-bold text-slate-900">{{ resumen.total_visitas }}</dd>
+      </div>
+      <div>
+        <dt class="text-xs font-semibold uppercase tracking-wide text-slate-400">Último ingreso</dt>
+        <dd class="mt-0.5 text-2xl font-bold text-slate-900">
+          {% if resumen.ultima_orden %}
+            {{ resumen.ultima_orden.fecha_ingreso|date:"d-m-Y" }}
+          {% else %}
+            <span class="text-base font-medium text-slate-400">Sin registros</span>
+          {% endif %}
+        </dd>
+      </div>
+      <div>
+        <dt class="text-xs font-semibold uppercase tracking-wide text-slate-400">Próxima mantención</dt>
+        <dd class="mt-0.5 text-lg font-semibold text-slate-900">
+          {% if resumen.proxima_mantencion_km or resumen.proxima_mantencion_fecha %}
+            {% if resumen.proxima_mantencion_fecha %}{{ resumen.proxima_mantencion_fecha|date:"d-m-Y" }}{% endif %}
+            {% if resumen.proxima_mantencion_km %}
+              {% if resumen.proxima_mantencion_fecha %} · {% endif %}{{ resumen.proxima_mantencion_km|intcomma }} km
+            {% endif %}
+          {% else %}
+            <span class="text-base font-medium text-slate-400">No indicada</span>
+          {% endif %}
+        </dd>
+      </div>
+    </dl>
+  </section>
+
+  {# --------------------------------- Dueño ---------------------------------- #}
+  <section class="mt-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+    <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">Dueño del vehículo</h2>
+
+    <div class="flex flex-wrap items-center justify-between gap-4">
+      <div>
+        <a href="{% url 'workshop:cliente' vehiculo.cliente.pk %}"
+           class="text-lg font-semibold text-sky-800 hover:underline">
+          {{ vehiculo.cliente.nombre }}
+        </a>
+        <p class="mt-0.5 text-sm text-slate-500">
+          {{ vehiculo.cliente.telefono|telefono_legible }}
+          {% if vehiculo.cliente.email %} · {{ vehiculo.cliente.email }}{% endif %}
+        </p>
+      </div>
+
+      <a href="https://wa.me/{{ vehiculo.cliente.telefono }}"
+         target="_blank" rel="noopener noreferrer"
+         class="no-print inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-base font-semibold text-emerald-800 transition hover:bg-emerald-100">
+        Avisar por WhatsApp
+      </a>
+    </div>
+  </section>
+
+  {# -------------------------------- Historial -------------------------------- #}
+  <section class="mt-8">
+    <h2 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">
+      Historial de mantenciones
+    </h2>
+
+    {% if historial %}
+      {% for orden in historial %}
+        {% include "workshop/partials/_orden_card.html" with orden=orden %}
+      {% endfor %}
+    {% else %}
+      <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center text-slate-500">
+        Este vehículo todavía no tiene visitas registradas.
+      </div>
+    {% endif %}
+  </section>
+
+{% endblock %}

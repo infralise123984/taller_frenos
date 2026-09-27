@@ -1,0 +1,15 @@
+{% if messages %}
+  <div class="mb-5 space-y-2">
+    {% for message in messages %}
+      {% if message.level_tag == 'success' %}
+        {% with clases="border-emerald-200 bg-emerald-50 text-emerald-900" %}{% include "partials/_message_item.html" %}{% endwith %}
+      {% elif message.level_tag == 'error' %}
+        {% with clases="border-red-200 bg-red-50 text-red-900" %}{% include "partials/_message_item.html" %}{% endwith %}
+      {% elif message.level_tag == 'warning' %}
+        {% with clases="border-amber-200 bg-amber-50 text-amber-900" %}{% include "partials/_message_item.html" %}{% endwith %}
+      {% else %}
+        {% with clases="border-sky-200 bg-sky-50 text-sky-900" %}{% include "partials/_message_item.html" %}{% endwith %}
+      {% endif %}
+    {% endfor %}
+  </div>
+{% endif %}

@@ -1,0 +1,34 @@
+/* Ajustes que Tailwind no cubre por sí solo. */
+
+/* El check de "trabajos realizados" se dibuja como tarjeta: el input real queda
+   oculto y el estado se refleja con el selector :checked + label. */
+.trabajo-checkbox {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+/* Evita que el navegador móvil haga zoom al enfocar campos de texto. */
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+}
+
+/* Los mensajes de error de Django no traen clase: se listan sin viñetas. */
+.errorlist {
+  list-style: none;
+  padding-left: 0;
+  margin: 0.25rem 0 0;
+  font-size: 0.875rem;
+  font-weight: 500;
+  color: #b91c1c;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+}

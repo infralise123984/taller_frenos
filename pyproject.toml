@@ -1,0 +1,26 @@
+[tool.ruff]
+line-length = 100
+target-version = "py313"
+exclude = ["**/migrations/*", ".venv"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "S",   # flake8-bandit (seguridad)
+    "DJ",  # flake8-django
+    "UP",  # pyupgrade
+]
+ignore = [
+    "S101",  # los assert son válidos dentro de los tests
+]
+
+[tool.ruff.lint.per-file-ignores]
+"config/settings/*.py" = ["F403", "F405"]
+"**/tests/*.py" = ["S105", "S106"]  # contraseñas de prueba explícitas
+
+[tool.ruff.lint.isort]
+known-first-party = ["apps", "config"]

@@ -1,0 +1,37 @@
+# Entornos virtuales
+.venv/
+venv/
+env/
+
+# Configuración local con secretos
+.env
+.env.*
+!.env.example
+
+# Artefactos de Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Base de datos local
+db.sqlite3
+db.sqlite3-journal
+
+# Estáticos recolectados y archivos subidos
+staticfiles/
+media/
+
+# Editores
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+.idea/
+.DS_Store
+
+# Instrucciones locales para el asistente: se mantienen fuera del repositorio.
+# Se excluye el archivo concreto y no la carpeta completa, porque
+# .github/workflows/ sí debe versionarse para que GitHub Actions funcione
+# (git no permite re-incluir archivos dentro de un directorio excluido).
+.github/copilot-instructions.md

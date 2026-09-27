@@ -1,0 +1,4 @@
+-r base.txt
+
+# Herramientas de calidad de código (solo desarrollo).
+ruff==0.14.*

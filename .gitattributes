@@ -1,0 +1,29 @@
+# Normaliza los finales de línea en el repositorio (LF) para evitar ruido de
+# CRLF/LF entre Windows y Linux. git se encarga de la conversión al hacer
+# checkout según core.autocrlf.
+
+* text=auto
+
+*.py text
+*.html text
+*.css text
+*.js text
+*.md text
+*.txt text
+*.toml text
+*.cfg text
+*.ini text
+*.json text
+*.yml text
+*.yaml text
+.env.example text
+
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.pdf binary
+*.woff binary
+*.woff2 binary

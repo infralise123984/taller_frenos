@@ -1,0 +1,92 @@
+{% extends "base.html" %}
+{% load humanize telefonos %}
+
+{% block title %}{{ cliente.nombre }} · Taller de Frenos{% endblock %}
+
+{% block content %}
+
+  <a href="{% url 'workshop:buscar' %}" class="no-print mb-4 inline-block text-sm font-medium text-sky-700 hover:underline">
+    ← Volver a la búsqueda
+  </a>
+
+  {# ------------------------------ Datos del cliente ------------------------------ #}
+  <section class="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+    <h1 class="text-2xl font-bold text-slate-900">{{ cliente.nombre }}</h1>
+
+    <div class="mt-4 grid gap-3 sm:grid-cols-2">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Teléfono / WhatsApp</p>
+        <p class="mt-0.5 text-lg text-slate-800">{{ cliente.telefono|telefono_legible }}</p>
+      </div>
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wide text-slate-400">Correo</p>
+        <p class="mt-0.5 text-lg text-slate-800">
+          {{ cliente.email|default:"—" }}
+        </p>
+      </div>
+    </div>
+
+    {% if cliente.notas %}
+      <p class="mt-4 whitespace-pre-line rounded-xl bg-slate-50 px-4 py-3 text-sm text-slate-600">{{ cliente.notas }}</p>
+    {% endif %}
+
+    <a href="https://wa.me/{{ cliente.telefono }}"
+       target="_blank" rel="noopener noreferrer"
+       class="no-print mt-5 inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-base font-semibold text-emerald-800 transition hover:bg-emerald-100">
+      Escribir por WhatsApp
+    </a>
+  </section>
+
+  {# ----------------------------- Vehículos del cliente ---------------------------- #}
+  <section class="mt-6">
+    <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+      Vehículos ({{ vehiculos|length }})
+    </h2>
+
+    {% if vehiculos %}
+      <ul class="space-y-3">
+        {% for vehiculo in vehiculos %}
+          <li>
+            <a href="{% url 'workshop:vehiculo' vehiculo.patente %}"
+               class="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm transition hover:border-sky-300 hover:shadow">
+              <div class="min-w-0">
+                <p class="text-xl font-black tracking-widest text-slate-900">{{ vehiculo.patente }}</p>
+                <p class="truncate text-sm text-slate-500">{{ vehiculo.descripcion_corta }}</p>
+              </div>
+              <span class="shrink-0 text-slate-400" aria-hidden="true">›</span>
+            </a>
+          </li>
+        {% endfor %}
+      </ul>
+    {% else %}
+      <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center text-slate-500">
+        Este cliente no tiene vehículos registrados.
+      </div>
+    {% endif %}
+  </section>
+
+  {# --------------------------- Últimas visitas ---------------------------- #}
+  <section class="mt-8">
+    <h2 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">
+      Últimas visitas
+    </h2>
+
+    {% if historial %}
+      <div class="space-y-4">
+        {% for orden in historial %}
+          <div>
+            <p class="mb-2 ml-5 text-sm font-semibold tracking-widest text-slate-500">
+              {{ orden.vehiculo.patente }}
+            </p>
+            {% include "workshop/partials/_orden_card.html" with orden=orden %}
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center text-slate-500">
+        Sin visitas registradas.
+      </div>
+    {% endif %}
+  </section>
+
+{% endblock %}

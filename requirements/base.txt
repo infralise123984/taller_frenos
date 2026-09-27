@@ -1,0 +1,6 @@
+# Dependencias comunes a todos los entornos.
+Django==5.2.*
+django-environ==0.12.*
+argon2-cffi==25.1.*
+httpx==0.28.*
+whitenoise==6.11.*
