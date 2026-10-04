@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import date
 
 from django import forms
+from django.forms.formsets import DELETION_FIELD_NAME
 from django.utils import timezone
 from django.utils.formats import number_format
 
@@ -255,6 +256,15 @@ class LineaFichaForm(forms.Form):
 class BaseLineaFichaFormSet(forms.BaseFormSet):
     """Reglas de la ficha completa: al menos una línea y un total que no sea negativo."""
 
+    def add_fields(self, form, index):
+        super().add_fields(form, index)
+
+        # La casilla de borrado actúa por detrás del botón "Quitar línea", así
+        # que no debe recibir el foco por teclado: nadie la ve.
+        casilla = form.fields.get(DELETION_FIELD_NAME)
+        if casilla is not None:
+            casilla.widget.attrs.update({"class": "borrar-linea", "tabindex": "-1"})
+
     def clean(self):
         if any(self.errors):
             return
@@ -327,16 +337,25 @@ def lineas_desde_formset(formset) -> tuple[LineaFicha, ...]:
     Traduce el formset al contrato del dominio.
 
     Se mantiene fuera de la vista para que el dominio no conozca nombres de
-    campos HTML ni el formato del formset.
+    campos HTML ni el formato del formset. No llegan al dominio las filas
+    marcadas para quitar ni las que quedaron en blanco: Django entrega estas
+    últimas sin datos que limpiar (``cleaned_data`` vacío), y la primera fila de
+    sobra siempre viaja en el formulario.
     """
-    return tuple(
-        LineaFicha(
-            tipo=datos["tipo"],
-            precio=datos.get("precio") or 0,
-            detalle=datos.get("detalle", ""),
-            codigo_repuesto=datos.get("codigo_repuesto", ""),
-            marca_repuesto=datos.get("marca_repuesto", ""),
+    lineas: list[LineaFicha] = []
+
+    for datos in formset.cleaned_data:
+        if datos.get("DELETE") or not datos.get("tipo"):
+            continue
+
+        lineas.append(
+            LineaFicha(
+                tipo=datos["tipo"],
+                precio=datos.get("precio") or 0,
+                detalle=datos.get("detalle", ""),
+                codigo_repuesto=datos.get("codigo_repuesto", ""),
+                marca_repuesto=datos.get("marca_repuesto", ""),
+            )
         )
-        for datos in formset.cleaned_data
-        if not datos.get("DELETE")
-    )
+
+    return tuple(lineas)

@@ -169,6 +169,18 @@ class RegistroIngresoTests(BaseAutenticadaTests):
 
         self.assertContains(respuesta, 'value="ABCD12"')
 
+    def test_la_casilla_de_borrado_queda_oculta_detras_de_un_boton(self) -> None:
+        """La línea se quita con un botón, no marcando una casilla a la vista."""
+        respuesta = self.client.get(reverse("workshop:ingreso_create"))
+
+        html = respuesta.content.decode()
+        self.assertIn("data-quitar-linea", html)
+        self.assertIn("campo-borrar", html)
+        # La casilla viaja igual en el formulario (es el contrato con Django),
+        # pero fuera de la vista y sin recibir el foco.
+        self.assertIn("-DELETE", html)
+        self.assertIn('tabindex="-1"', html)
+
     def test_registra_el_ingreso_y_redirige_a_la_ficha(self) -> None:
         respuesta = self.client.post(reverse("workshop:ingreso_create"), self._payload())
 
@@ -185,6 +197,20 @@ class RegistroIngresoTests(BaseAutenticadaTests):
         self.assertEqual(respuesta.status_code, 200)
         self.assertContains(respuesta, "Agrega al menos una línea")
         self.assertFalse(Vehiculo.objects.filter(patente="WXYZ99").exists())
+
+    def test_registra_el_ingreso_aunque_sobre_una_fila_en_blanco(self) -> None:
+        respuesta = self.client.post(
+            reverse("workshop:ingreso_create"),
+            self._payload(
+                **payload_lineas(
+                    {"tipo": TipoItemFicha.PASTILLAS, "precio": 32_000},
+                    blancas=1,
+                )
+            ),
+        )
+
+        self.assertRedirects(respuesta, reverse("workshop:vehiculo", args=["WXYZ99"]))
+        self.assertEqual(ItemTrabajo.objects.filter(orden__vehiculo__patente="WXYZ99").count(), 1)
 
     def test_reutiliza_el_cliente_si_el_telefono_ya_existe(self) -> None:
         self.client.post(

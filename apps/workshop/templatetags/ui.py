@@ -13,6 +13,7 @@ from django import template
 from apps.ui import (
     BOTON_PELIGRO,
     BOTON_PRIMARIO,
+    BOTON_QUITAR,
     BOTON_SECUNDARIO,
     INPUT,
     INPUT_COMPACTO,
@@ -56,3 +57,8 @@ def clase_boton_secundario() -> str:
 @register.simple_tag
 def clase_boton_peligro() -> str:
     return BOTON_PELIGRO
+
+
+@register.simple_tag
+def clase_boton_quitar() -> str:
+    return BOTON_QUITAR

@@ -6,16 +6,20 @@ from apps.workshop.forms import MAX_LINEAS_FICHA, PREFIJO_LINEAS
 from apps.workshop.models import TipoItemFicha
 
 
-def payload_lineas(*lineas: dict[str, object]) -> dict[str, str]:
+def payload_lineas(*lineas: dict[str, object], blancas: int = 0) -> dict[str, str]:
     """
     Datos del formset de líneas, incluido su formulario de gestión.
 
     Cada línea es un diccionario con las claves ``tipo``, ``precio``,
     ``detalle``, ``codigo_repuesto``, ``marca_repuesto`` y ``DELETE``, todas
     opcionales: se arma una línea válida con una sola de ellas.
+
+    ``blancas`` agrega filas sin tocar, tal como las envía el navegador cuando
+    quedan de sobra en el formulario (Django las entrega sin datos que limpiar).
     """
+    total = len(lineas) + blancas
     datos = {
-        f"{PREFIJO_LINEAS}-TOTAL_FORMS": str(len(lineas)),
+        f"{PREFIJO_LINEAS}-TOTAL_FORMS": str(total),
         f"{PREFIJO_LINEAS}-INITIAL_FORMS": "0",
         f"{PREFIJO_LINEAS}-MIN_NUM_FORMS": "0",
         f"{PREFIJO_LINEAS}-MAX_NUM_FORMS": str(MAX_LINEAS_FICHA),
@@ -29,5 +33,12 @@ def payload_lineas(*lineas: dict[str, object]) -> dict[str, str]:
         datos[f"{PREFIJO_LINEAS}-{indice}-marca_repuesto"] = str(linea.get("marca_repuesto", ""))
         if linea.get("DELETE"):
             datos[f"{PREFIJO_LINEAS}-{indice}-DELETE"] = "on"
+
+    for indice in range(len(lineas), total):
+        datos[f"{PREFIJO_LINEAS}-{indice}-tipo"] = ""
+        datos[f"{PREFIJO_LINEAS}-{indice}-precio"] = "0"
+        datos[f"{PREFIJO_LINEAS}-{indice}-detalle"] = ""
+        datos[f"{PREFIJO_LINEAS}-{indice}-codigo_repuesto"] = ""
+        datos[f"{PREFIJO_LINEAS}-{indice}-marca_repuesto"] = ""
 
     return datos

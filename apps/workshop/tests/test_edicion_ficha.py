@@ -164,6 +164,20 @@ class EdicionFichaTests(TestCase):
 
         self.assertEqual(respuesta.status_code, 404)
 
+    def test_guarda_aunque_sobre_una_fila_en_blanco(self) -> None:
+        """La pantalla de corrección siempre lleva una fila de sobra sin usar."""
+        respuesta = self.client.post(
+            self._url(),
+            self._payload(
+                {"tipo": TipoItemFicha.PASTILLAS, "precio": 32_000},
+                blancas=1,
+            ),
+        )
+
+        self.assertRedirects(respuesta, reverse("workshop:vehiculo", args=["BJDF45"]))
+        self.assertEqual(self.orden.items.count(), 1)
+        self.assertEqual(self.orden.total, 32_000)
+
     # -- Presentación y acceso ---------------------------------------------
 
     def test_muestra_las_lineas_guardadas_al_abrir_la_pantalla(self) -> None:

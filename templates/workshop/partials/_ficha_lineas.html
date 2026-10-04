@@ -19,6 +19,7 @@
   </h2>
   <p class="mb-4 text-xs text-slate-400">
     Elige cada trabajo de la lista y agrega una línea por trabajo. El total se calcula solo.
+    Un descuento se escribe con el monto en negativo.
   </p>
 
   {{ formset.management_form }}
@@ -67,7 +68,6 @@
     </button>
 
   </div>
-
   <div class="mt-5 flex items-baseline justify-between border-t-2 border-slate-900 pt-4">
     <span class="text-sm font-semibold uppercase tracking-wide text-slate-500">Total</span>
     <span class="text-3xl font-black text-slate-900">

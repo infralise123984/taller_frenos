@@ -38,7 +38,7 @@ impresa** al cliente —con los datos del taller (dirección, ciudad y teléfono
 | Ficha impresa | **Sí**: vista imprimible para entregar copia al cliente, **con los datos del taller** (dirección, ciudad, teléfono). |
 | Corrección posterior | **Sí**: poder editar una ficha guardada (agregar, borrar líneas, cambiar precios). |
 | Datos del taller | Se guardan en un **modelo editable desde el sistema** (admin de Django): **dirección, ciudad y teléfono**, sin re-desplegar. El nombre del taller va fijo en la plantilla. |
-| Ficha impresa, contenido | **Solo lo que se ve en el papel**: fecha, marca, patente, líneas **usadas** (no las 15 con espacios en blanco), total y observaciones. Sin kilometraje ni próxima mantención. |
+| Ficha impresa, contenido | **Solo lo que se ve en el papel**: fecha, marca, patente, líneas **usadas** (no las 15 con espacios en blanco), total y observaciones. Sin kilometraje ni próxima mantención. |/
 | Fichas anteriores | **No hay**: la migración es solo de esquema, sin conversión de datos. |
 | Ficha sin líneas | **No se permite**: al menos una línea para guardar. |
 | Descuentos | **Sí existen**: se registran como una línea del tipo `Descuento` con **precio negativo**, que resta del total. |
@@ -228,10 +228,13 @@ una línea → completar precio / detalle / código**.
   `marca_repuesto` (texto), `precio` (número, acepta negativos) y botón "Quitar".
 - La línea `Descuento` con precio negativo resta del total. El campo acepta el
   signo menos; el resto son montos positivos.
-- "Quitar línea" **hace desaparecer la fila de inmediato**, para que no quede a
-  la vista una línea que no se va a guardar. Como un clic apurado no debe costar
-  lo que ya estaba escrito, aparece un "Deshacer" bajo las líneas que devuelve
-  las filas quitadas mientras no se haya guardado todavía.
+- "Quitar línea" es un **botón** por fila (no una casilla a la vista): al
+  apretarlo, la fila desaparece de la ficha y su precio deja de contar. Detrás
+  queda la casilla `DELETE` que Django espera para borrar una línea ya guardada;
+  vive oculta y fuera del orden de tabulación, así que nadie la ve ni la enfoca
+  por error. Como un clic apurado no debe costar lo que ya estaba escrito,
+  aparece un "Deshacer" bajo las líneas que devuelve las filas quitadas mientras
+  no se haya guardado todavía.
 - El total se muestra abajo y se recalcula al escribir un precio.
 - Permitir la **misma línea repetida** (dos cambios de pastillas en el mismo auto).
 - Sin JavaScript la ficha sigue funcionando: el formset se envía completo y el
@@ -256,8 +259,17 @@ una línea → completar precio / detalle / código**.
   observaciones), compartido por el ingreso y por la corrección.
 - `static/js/ficha.js` (vanilla, sin build step, cargado con `{% block scripts %}`)
   clona el `<template>` de la fila, actualiza `TOTAL_FORMS` y recalcula el total.
-  El proyecto no tiene bundler; el archivo debe existir antes del `collectstatic`
-  de Render o el manifiesto de estáticos falla.
+  También atiende el botón "Quitar línea". El proyecto no tiene bundler; el
+  archivo debe existir antes del `collectstatic` de Render o el manifiesto de
+  estáticos falla.
+- `BaseLineaFichaFormSet.add_fields` marca la casilla `DELETE` con `tabindex="-1"`
+  (constante `DELETION_FIELD_NAME`) para que no reciba el foco; su ocultamiento
+  visual lo hace `.campo-borrar` en `static/css/app.css`, no Tailwind, para que no
+  aparezca un cuadrito suelto si la CDN no carga.
+- `lineas_desde_formset(...)` ignora las filas marcadas para quitar y las que
+  quedaron en blanco: Django entrega estas últimas con `cleaned_data` vacío, y la
+  fila de sobra siempre viaja en el formulario (documentado en `payload_lineas`
+  de las pruebas, que acepta `blancas=N`).
 - Los controles que no son campos de formulario (el desplegable "Agregar
   trabajo", botones) toman sus clases de `apps/ui.py` con los `simple_tag` de
   [`templatetags/ui.py`](../../apps/workshop/templatetags/ui.py).
@@ -342,7 +354,7 @@ class LineaFicha:
 | Archivo | Qué cubre |
 | --- | --- |
 | `test_registro_ingreso.py` | Línea con precio, código y detalle se guarda tal cual; `total` suma las líneas y **resta el descuento**; permite repetir el mismo trabajo; servicio rechaza `tipo` fuera del catálogo, precio fuera de rango, ficha vacía y descuento mayor que el trabajo |
-| `test_ficha_formset.py` | Formset válido/inválido, línea repetida permitida, línea sin precio permitida, línea con precio y sin trabajo rechazada, borrar línea, ficha sin líneas rechazada, descuento mayor que el total rechazado, tope de 30 líneas |
+| `test_ficha_formset.py` | Formset válido/inválido, línea repetida permitida, línea sin precio permitida, línea con precio y sin trabajo rechazada, borrar línea, ficha sin líneas rechazada, descuento mayor que el total rechazado, tope de 30 líneas, **filas de sobra en blanco ignoradas** |
 | `test_edicion_ficha.py` | Editar agrega, modifica y borra líneas; el total del servidor manda sobre un total falso enviado por POST; no se puede cambiar fecha ni kilometraje; al rechazar no se pierde la ficha original |
 | `test_ficha_imprimible.py` | La vista responde 200, muestra patente, líneas usadas y total; **no** imprime kilometraje ni próxima mantención; usuario anónimo es redirigido al login |
 | `test_ficha_imprimible.py` (`EncabezadoDelTallerTests`) | El encabezado imprime dirección, ciudad y teléfono; sin datos configurados la ficha sale igual |

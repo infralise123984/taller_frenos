@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from django.test import SimpleTestCase
 
-from apps.workshop.forms import MAX_LINEAS_FICHA, LineaFichaFormSet
+from apps.workshop.forms import (
+    MAX_LINEAS_FICHA,
+    PREFIJO_LINEAS,
+    LineaFichaFormSet,
+    lineas_desde_formset,
+)
 from apps.workshop.models import TOPE_PRECIO, TipoItemFicha
 from apps.workshop.tests.helpers import payload_lineas
 
@@ -12,11 +17,13 @@ from apps.workshop.tests.helpers import payload_lineas
 class LineaFichaFormSetTests(SimpleTestCase):
     """El formset es puro: no necesita base de datos."""
 
-    def _formset(self, *lineas: dict[str, object]) -> LineaFichaFormSet:
-        return LineaFichaFormSet(payload_lineas(*lineas), prefix="lineas")
+    def _formset(self, *lineas: dict[str, object], blancas: int = 0) -> LineaFichaFormSet:
+        return LineaFichaFormSet(
+            payload_lineas(*lineas, blancas=blancas),
+            prefix=PREFIJO_LINEAS,
+        )
 
     # -- Camino feliz -------------------------------------------------------
-
     def test_acepta_una_linea_con_su_precio_y_su_detalle(self) -> None:
         formset = self._formset(
             {
@@ -124,3 +131,37 @@ class LineaFichaFormSetTests(SimpleTestCase):
 
         self.assertFalse(formset.is_valid())
         self.assertIn("tipo", formset.errors[0])
+
+    # -- Filas de sobra -----------------------------------------------------
+
+    def test_ignora_la_fila_en_blanco_que_sobra_en_el_formulario(self) -> None:
+        """
+        El navegador siempre manda una fila sin usar; Django la entrega con
+        ``cleaned_data`` vacío y no debe convertirse en una línea.
+        """
+        formset = self._formset({"tipo": TipoItemFicha.PASTILLAS, "precio": 32_000}, blancas=1)
+
+        self.assertTrue(formset.is_valid(), formset.errors)
+
+        lineas = lineas_desde_formset(formset)
+        self.assertEqual(len(lineas), 1)
+        self.assertEqual(lineas[0].tipo, TipoItemFicha.PASTILLAS)
+
+    def test_una_ficha_con_solo_filas_en_blanco_se_rechaza(self) -> None:
+        formset = self._formset(blancas=2)
+
+        self.assertFalse(formset.is_valid())
+        self.assertIn("Agrega al menos una línea", str(formset.non_form_errors()))
+
+    def test_varias_filas_en_blanco_no_afectan_a_las_lineas_llenas(self) -> None:
+        formset = self._formset(
+            {"tipo": TipoItemFicha.OBRA_MANO, "precio": 25_000},
+            {"tipo": TipoItemFicha.DESCUENTO, "precio": -5_000},
+            blancas=3,
+        )
+
+        self.assertTrue(formset.is_valid(), formset.errors)
+
+        lineas = lineas_desde_formset(formset)
+        self.assertEqual(len(lineas), 2)
+        self.assertEqual(sum(linea.precio for linea in lineas), 20_000)

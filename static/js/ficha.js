@@ -30,9 +30,14 @@
     return Array.prototype.slice.call(contenedor.querySelectorAll("[data-fila]"));
   }
 
+  // La casilla real que Django usa para borrar una línea ya guardada.
+  function casillaBorrar(fila) {
+    return fila.querySelector("input[name$='-DELETE']");
+  }
+
   function estaQuitada(fila) {
-    var borrar = fila.querySelector(".borrar-linea");
-    return Boolean(borrar && borrar.checked);
+    var casilla = casillaBorrar(fila);
+    return Boolean(casilla && casilla.checked);
   }
 
   function actualizarAviso() {
@@ -100,11 +105,23 @@
 
   function deshacerQuitadas() {
     filas().forEach(function (fila) {
-      var borrar = fila.querySelector(".borrar-linea");
-      if (borrar && borrar.checked) {
-        borrar.checked = false;
+      var casilla = casillaBorrar(fila);
+      if (casilla && casilla.checked) {
+        casilla.checked = false;
       }
     });
+    actualizarTotal();
+  }
+
+  function quitarLinea(fila) {
+    var casilla = casillaBorrar(fila);
+    if (!casilla) {
+      return;
+    }
+
+    casilla.checked = true;
+    // El CSS ya la esconde; esto lo repite para los navegadores sin :has().
+    fila.hidden = true;
     actualizarTotal();
   }
 
@@ -121,6 +138,18 @@
   if (botonDeshacer) {
     botonDeshacer.addEventListener("click", deshacerQuitadas);
   }
+
+  contenedor.addEventListener("click", function (evento) {
+    var boton = evento.target.closest("[data-quitar-linea]");
+    if (!boton) {
+      return;
+    }
+
+    var fila = boton.closest("[data-fila]");
+    if (fila) {
+      quitarLinea(fila);
+    }
+  });
 
   contenedor.addEventListener("input", actualizarTotal);
   contenedor.addEventListener("change", actualizarTotal);
