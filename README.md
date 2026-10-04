@@ -60,6 +60,10 @@ apps/
 templates/            base + parciales + una plantilla por pantalla
 ```
 
+Las reglas de la ficha de trabajo del taller (líneas, precios, total,
+descuentos, impresión y datos del taller) viven como instrucciones de proyecto en
+[`.github/instructions/ficha-trabajo.instructions.md`](.github/instructions/ficha-trabajo.instructions.md).
+
 ---
 
 ## Acceso al sistema
@@ -396,8 +400,10 @@ request. El flujo no necesita archivo `.env`: los valores por defecto de
    provenga de una visita anterior?
 2. **Cambio de dueño:** el registro rápido conserva el dueño original del
    vehículo. ¿Se necesita un flujo explícito de transferencia?
-3. **Catálogo de trabajos:** ¿la lista de `TipoTrabajo` cubre todos los trabajos
-   reales del taller? ¿Se necesita adjuntar repuestos con precio?
+3. **Catálogo de trabajos:** resuelto para la próxima entrega en las
+   [instrucciones de la ficha de trabajo](.github/instructions/ficha-trabajo.instructions.md):
+   la lista pasa a las líneas de la ficha de papel y cada línea lleva precio y
+   código de repuesto.
 4. **Roles:** hoy hay usuarios habilitados o deshabilitados a secas. ¿Se
    requiere distinguir entre recepción y mecánico?
 5. **Ubicación del local:** ¿el sistema correrá en un servidor con dominio
