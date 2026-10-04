@@ -56,8 +56,10 @@ apps/
     services/         LoginService, limitadores de tasa, IP del cliente
   workshop/           clientes, vehículos, órdenes de trabajo
     selectors.py      consultas de lectura (sin N+1)
-    services/         registro de ingresos
+    services/         registro de ingresos y corrección de fichas
+    templatetags/     filtros y clases compartidas para las plantillas
 templates/            base + parciales + una plantilla por pantalla
+static/js/            líneas de la ficha (agregar, quitar y total en vivo)
 ```
 
 Las reglas de la ficha de trabajo del taller (líneas, precios, total,
@@ -155,6 +157,8 @@ registrarla en `apps/accounts/providers/factory.py`.
 | `/taller/vehiculo/<patente>/` | Ficha del vehículo e historial |
 | `/taller/cliente/<id>/` | Ficha del cliente y sus vehículos |
 | `/taller/ingresos/nuevo/` | Registro rápido de un ingreso |
+| `/taller/ingresos/<id>/editar/` | Corregir las líneas de una ficha guardada |
+| `/taller/ingresos/<id>/imprimir/` | Ficha lista para imprimir y entregar |
 
 La interfaz está pensada para usarse de pie en el mesón: campos y botones
 grandes, textos legibles y diseño que funciona igual en teléfono, tablet y
@@ -177,6 +181,9 @@ publicar conviene compilarlo localmente.
 | Patente y teléfono se almacenan normalizados | Una sola representación evita duplicados |
 | Índices declarados en cada `Meta` para los campos de búsqueda | Rendimiento previsible |
 | `select_related` / `prefetch_related` centralizados en selectores | Evitar N+1 |
+| El total de la visita no se guarda: se calcula sumando sus líneas | Un total almacenado puede desincronizarse |
+| El total y las reglas de las líneas se validan en el servidor | El navegador no es una fuente confiable |
+| Descuento como una línea más, con precio negativo | Una sola forma de restar, sin casos especiales |
 
 ### Modelo de datos
 
@@ -184,10 +191,18 @@ publicar conviene compilarlo localmente.
   normalizado para no duplicar fichas por diferencias de formato.
 - **`Vehiculo`** — patente única y normalizada (mayúsculas, sin separadores).
 - **`OrdenTrabajo`** — una visita: fecha, kilometraje, observaciones y la
-  recomendación de próxima mantención (por km, por fecha, o ambas).
-- **`ItemTrabajo`** — cada intervención puntual de la visita, tipificada en
-  `TipoTrabajo`. Tipificarla ahora permite responder más adelante preguntas
-  como "¿cuántos cambios de pastillas hicimos este mes?".
+  recomendación de próxima mantención (por km, por fecha, o ambas). Su `total`
+  es la suma de sus líneas.
+- **`ItemTrabajo`** — una línea de la ficha: el trabajo tipificado en
+  `TipoItemFicha`, su precio en pesos y los datos del repuesto (código y marca)
+  con un detalle de texto libre donde va la posición (delantero, trasero). La
+  línea `Descuento` se escribe con precio negativo y resta del total.
+- **`DatosTaller`** — fila única con dirección, ciudad y teléfono, los datos que
+  salen impresos en la ficha que se entrega al cliente.
+
+Los detalles de la ficha (líneas, precios, total, impresión y corrección) están
+como instrucciones de proyecto en
+[`.github/instructions/ficha-trabajo.instructions.md`](.github/instructions/ficha-trabajo.instructions.md).
 
 ---
 
@@ -378,18 +393,18 @@ probó el proyecto y la que usa la CI.
 python manage.py test
 ```
 
-94 pruebas. Cubren el proveedor OTP local, el servicio de login (incluidos
+163 pruebas. Cubren el proveedor OTP local, el servicio de login (incluidos
 bloqueos y ausencia de enumeración de usuarios), las vistas de acceso, la
-normalización de patentes y teléfonos, el registro de ingresos y la
-localización chilena.
+normalización de patentes y teléfonos, el registro de ingresos, las líneas de la
+ficha (precios, descuentos, corrección e impresión) y la localización chilena.
 
 Las pruebas de vistas usan un proveedor de OTP falso, de modo que no dependen de
 red ni de credenciales.
 
 GitHub Actions ejecuta estas mismas verificaciones (`ruff check`,
-`ruff format --check` y las pruebas) en cada push a `main` y en cada pull
-request. El flujo no necesita archivo `.env`: los valores por defecto de
-`config/settings/dev.py` bastan para probar.
+`ruff format --check` y las pruebas) en cada push a `main`, `desarrollo` y en
+cada pull request. El flujo no necesita archivo `.env`: los valores por defecto
+de `config/settings/dev.py` bastan para probar.
 
 ---
 
@@ -400,13 +415,19 @@ request. El flujo no necesita archivo `.env`: los valores por defecto de
    provenga de una visita anterior?
 2. **Cambio de dueño:** el registro rápido conserva el dueño original del
    vehículo. ¿Se necesita un flujo explícito de transferencia?
-3. **Catálogo de trabajos:** resuelto para la próxima entrega en las
+3. **Catálogo de trabajos:** resuelto en las
    [instrucciones de la ficha de trabajo](.github/instructions/ficha-trabajo.instructions.md):
-   la lista pasa a las líneas de la ficha de papel y cada línea lleva precio y
-   código de repuesto.
+   la lista son las líneas de la ficha de papel y cada línea lleva precio,
+   código y marca del repuesto.
+4. **Estado de la ficha:** el papel se imprime al pagar o se usa como
+   presupuesto. Falta decidir si la ficha necesita un estado (presupuesto /
+   pagada) y si eso cambia la copia impresa. Pendiente de conversar con la
+   encargada.
 4. **Roles:** hoy hay usuarios habilitados o deshabilitados a secas. ¿Se
    requiere distinguir entre recepción y mecánico?
 5. **Ubicación del local:** ¿el sistema correrá en un servidor con dominio
    propio, o conviene empaquetarlo para uso en la red local del taller?
 6. **Respaldo:** con la información en papel no había respaldo. Conviene
    definir una copia periódica de la base de datos desde el primer día.
+7. **Folio de la ficha:** ¿basta el número interno de la visita, o se necesita
+   un folio visible para cuadrar con un correlativo de papel?

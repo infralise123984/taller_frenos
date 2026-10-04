@@ -25,3 +25,25 @@ class IngresoDuplicadoError(WorkshopDomainError):
     def __init__(self, orden_id: int) -> None:
         super().__init__("Ya existe un ingreso con la misma fecha y kilometraje.")
         self.orden_id = orden_id
+
+
+class FichaVaciaError(WorkshopDomainError):
+    """La ficha no tiene ninguna línea: no hay nada que cobrar ni que registrar."""
+
+    def __init__(self) -> None:
+        super().__init__("La ficha necesita al menos una línea.")
+
+
+class LineaFichaInvalidaError(WorkshopDomainError):
+    """Una línea no cumple las reglas del catálogo de trabajos o del precio."""
+
+    def __init__(self, motivo: str) -> None:
+        super().__init__(motivo)
+
+
+class TotalFichaNegativoError(WorkshopDomainError):
+    """El descuento es mayor que el trabajo: el total de la ficha quedaría bajo cero."""
+
+    def __init__(self, total: int) -> None:
+        super().__init__("El descuento no puede dejar el total en negativo.")
+        self.total = total

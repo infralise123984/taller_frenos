@@ -17,21 +17,36 @@ from django.contrib import messages
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import get_object_or_404, redirect, render
 
-from apps.workshop.exceptions import IngresoDuplicadoError, PatenteInvalidaError
-from apps.workshop.forms import BuscarPatenteForm, IngresoRapidoForm
-from apps.workshop.models import Cliente, Vehiculo
+from apps.workshop.exceptions import (
+    IngresoDuplicadoError,
+    PatenteInvalidaError,
+    WorkshopDomainError,
+)
+from apps.workshop.forms import (
+    PREFIJO_LINEAS,
+    BuscarPatenteForm,
+    FichaEdicionForm,
+    IngresoRapidoForm,
+    LineaFichaFormSet,
+    lineas_desde_formset,
+    lineas_iniciales,
+)
+from apps.workshop.models import Cliente, TipoItemFicha, Vehiculo
 from apps.workshop.patentes import normalize_patente
 from apps.workshop.selectors import (
     buscar_vehiculos,
+    datos_del_taller,
     historial_de_cliente,
     historial_de_vehiculo,
     ingresos_recientes,
+    orden_de_visita,
     resumen_de_vehiculo,
     vehiculos_de_cliente,
 )
 from apps.workshop.services import (
     DatosIngreso,
-    TrabajoSolicitado,
+    LineaFicha,
+    build_actualizar_ficha_service,
     build_registro_ingreso_service,
 )
 
@@ -112,7 +127,7 @@ def cliente_detail(request: HttpRequest, pk: int) -> HttpResponse:
 
 
 def ingreso_create(request: HttpRequest) -> HttpResponse:
-    """Registra cliente, vehículo y visita en una sola pasada."""
+    """Registra cliente, vehículo y la ficha del trabajo, en una sola pasada."""
     inicial = {}
     patente_precargada = (request.GET.get("patente") or "").strip().upper()
     if patente_precargada:
@@ -120,20 +135,37 @@ def ingreso_create(request: HttpRequest) -> HttpResponse:
 
     if request.method == "POST":
         form = IngresoRapidoForm(request.POST)
-        if form.is_valid():
-            return _registrar_ingreso(request, form)
+        formset = LineaFichaFormSet(request.POST, prefix=PREFIJO_LINEAS)
+        if form.is_valid() and formset.is_valid():
+            return _registrar_ingreso(request, form, formset)
     else:
         form = IngresoRapidoForm(initial=inicial)
+        formset = LineaFichaFormSet(prefix=PREFIJO_LINEAS)
 
-    return render(request, "workshop/ingreso_form.html", {"form": form})
+    return _render_ingreso(request, form, formset)
 
 
-def _registrar_ingreso(request: HttpRequest, form: IngresoRapidoForm) -> HttpResponse:
+def _render_ingreso(
+    request: HttpRequest,
+    form: IngresoRapidoForm,
+    formset: LineaFichaFormSet,
+) -> HttpResponse:
+    contexto = {"form": form, "formset": formset, "catalogo": TipoItemFicha.choices}
+    return render(request, "workshop/ingreso_form.html", contexto)
+
+
+def _registrar_ingreso(
+    request: HttpRequest,
+    form: IngresoRapidoForm,
+    formset: LineaFichaFormSet,
+) -> HttpResponse:
     try:
-        resultado = build_registro_ingreso_service().registrar(_datos_desde_formulario(form))
+        resultado = build_registro_ingreso_service().registrar(
+            _datos_desde_formulario(form, formset)
+        )
     except PatenteInvalidaError as exc:
         form.add_error("patente", str(exc))
-        return render(request, "workshop/ingreso_form.html", {"form": form})
+        return _render_ingreso(request, form, formset)
     except IngresoDuplicadoError:
         messages.warning(
             request,
@@ -141,6 +173,12 @@ def _registrar_ingreso(request: HttpRequest, form: IngresoRapidoForm) -> HttpRes
             "Te mostramos el registro existente.",
         )
         return redirect("workshop:vehiculo", patente=form.cleaned_data["patente"])
+    except WorkshopDomainError as exc:
+        # El formulario ya valida estas reglas; aquí solo se evita un error 500
+        # si alguna se cuela (por ejemplo, desde una petición manipulada).
+        logger.warning("Ingreso rechazado por el dominio: %s", exc)
+        form.add_error(None, str(exc))
+        return _render_ingreso(request, form, formset)
 
     mensaje = (
         "Vehículo registrado correctamente."
@@ -154,14 +192,17 @@ def _registrar_ingreso(request: HttpRequest, form: IngresoRapidoForm) -> HttpRes
     return redirect("workshop:vehiculo", patente=resultado.vehiculo.patente)
 
 
-def _datos_desde_formulario(form: IngresoRapidoForm) -> DatosIngreso:
+def _datos_desde_formulario(
+    form: IngresoRapidoForm,
+    formset: LineaFichaFormSet,
+) -> DatosIngreso:
     """
     Traduce el formulario al contrato del servicio.
 
     Se mantiene aparte para que el dominio no conozca nombres de campos HTML.
     """
     datos = form.cleaned_data
-    trabajos = tuple(TrabajoSolicitado(tipo=tipo) for tipo in datos["trabajos"])
+    lineas: tuple[LineaFicha, ...] = lineas_desde_formset(formset)
 
     return DatosIngreso(
         patente=datos["patente"],
@@ -177,5 +218,89 @@ def _datos_desde_formulario(form: IngresoRapidoForm) -> DatosIngreso:
         observaciones=datos["observaciones"],
         proxima_mantencion_km=datos["proxima_mantencion_km"],
         proxima_mantencion_fecha=datos["proxima_mantencion_fecha"],
-        trabajos=trabajos,
+        lineas=lineas,
     )
+
+
+# ---------------------------------------------------------------------------
+# Corrección de una ficha guardada
+# ---------------------------------------------------------------------------
+
+
+def ficha_editar(request: HttpRequest, pk: int) -> HttpResponse:
+    """
+    Corrige las líneas y las observaciones de una visita ya registrada.
+
+    No permite cambiar el vehículo, el dueño, la fecha ni el kilometraje: esos
+    datos identifican la visita en el historial del auto.
+    """
+    orden = get_object_or_404(orden_de_visita(pk))
+
+    if request.method == "POST":
+        form = FichaEdicionForm(request.POST)
+        formset = LineaFichaFormSet(request.POST, prefix=PREFIJO_LINEAS)
+        if form.is_valid() and formset.is_valid():
+            return _actualizar_ficha(request, orden, form, formset)
+    else:
+        form = FichaEdicionForm.desde_orden(orden)
+        formset = LineaFichaFormSet(initial=lineas_iniciales(orden), prefix=PREFIJO_LINEAS)
+
+    return _render_edicion(request, orden, form, formset)
+
+
+def _render_edicion(
+    request: HttpRequest,
+    orden,
+    form: FichaEdicionForm,
+    formset: LineaFichaFormSet,
+) -> HttpResponse:
+    contexto = {
+        "orden": orden,
+        "form": form,
+        "formset": formset,
+        "catalogo": TipoItemFicha.choices,
+    }
+    return render(request, "workshop/ficha_editar.html", contexto)
+
+
+def _actualizar_ficha(
+    request: HttpRequest,
+    orden,
+    form: FichaEdicionForm,
+    formset: LineaFichaFormSet,
+) -> HttpResponse:
+    try:
+        build_actualizar_ficha_service().actualizar(
+            orden,
+            lineas=lineas_desde_formset(formset),
+            observaciones=form.cleaned_data["observaciones"],
+        )
+    except WorkshopDomainError as exc:
+        logger.warning("Corrección rechazada por el dominio: %s", exc)
+        form.add_error(None, str(exc))
+        return _render_edicion(request, orden, form, formset)
+
+    messages.success(request, f"Ficha actualizada para {orden.vehiculo.patente}.")
+    return redirect("workshop:vehiculo", patente=orden.vehiculo.patente)
+
+
+# ---------------------------------------------------------------------------
+# Ficha imprimible
+# ---------------------------------------------------------------------------
+
+
+def ficha_imprimir(request: HttpRequest, pk: int) -> HttpResponse:
+    """
+    Ficha lista para imprimir y entregar al cliente.
+
+    Imprime solo lo que trae la ficha de papel: el encabezado del taller, la
+    fecha, marca y patente, las líneas usadas, el total y las observaciones.
+    """
+    orden = get_object_or_404(orden_de_visita(pk))
+
+    contexto = {
+        "orden": orden,
+        "lineas": orden.items.all(),
+        "taller": datos_del_taller(),
+    }
+    return render(request, "workshop/ficha_imprimible.html", contexto)

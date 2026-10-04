@@ -8,6 +8,24 @@
   pointer-events: none;
 }
 
+/* Una línea marcada como "quitar" queda atenuada y avisada, no desaparece: así
+   se puede desmarcar sin perder lo que ya estaba escrito. */
+.etiqueta-quitada {
+  display: none;
+}
+
+.fila-ficha:has(.borrar-linea:checked) {
+  opacity: 0.55;
+}
+
+.fila-ficha:has(.borrar-linea:checked) .etiqueta-quitar {
+  display: none;
+}
+
+.fila-ficha:has(.borrar-linea:checked) .etiqueta-quitada {
+  display: inline;
+}
+
 /* Evita que el navegador móvil haga zoom al enfocar campos de texto. */
 @media (max-width: 640px) {
   input,
@@ -30,5 +48,28 @@
 @media print {
   .no-print {
     display: none !important;
+  }
+
+  /* La ficha impresa sale en una hoja, sin la barra del navegador ni sombras. */
+  @page {
+    margin: 12mm;
+  }
+
+  body {
+    background: #fff;
+  }
+
+  /* Tailwind llega por CDN y se inyecta después de esta hoja, así que estas
+     reglas necesitan !important para ganar en la impresión. */
+  .ficha-impresa {
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    box-shadow: none !important;
+  }
+
+  main {
+    max-width: none !important;
+    padding: 0 !important;
   }
 }

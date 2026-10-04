@@ -13,7 +13,7 @@ from datetime import date
 
 from django.db.models import QuerySet
 
-from apps.workshop.models import Cliente, OrdenTrabajo, Vehiculo
+from apps.workshop.models import Cliente, DatosTaller, OrdenTrabajo, Vehiculo
 
 LIMITE_BUSQUEDA = 20
 LIMITE_INGRESOS_RECIENTES = 8
@@ -32,6 +32,26 @@ def historial_de_vehiculo(vehiculo: Vehiculo) -> QuerySet[OrdenTrabajo]:
 def ingresos_recientes(limite: int = LIMITE_INGRESOS_RECIENTES) -> QuerySet[OrdenTrabajo]:
     """Últimas visitas registradas en el taller."""
     return OrdenTrabajo.objects.recientes(limite)
+
+
+def orden_de_visita(pk: int) -> QuerySet[OrdenTrabajo]:
+    """
+    Una sola visita con su detalle precargado.
+
+    Lo usan las pantallas de corrección y de impresión de la ficha, que
+    necesitan las líneas sin disparar una consulta por línea.
+    """
+    return OrdenTrabajo.objects.with_detalle().filter(pk=pk)
+
+
+def datos_del_taller() -> DatosTaller:
+    """
+    Datos del taller para el encabezado de la ficha impresa.
+
+    Nunca devuelve ``None``: si todavía no se configuraron, entrega una
+    instancia vacía y la ficha se imprime sin dirección ni teléfono.
+    """
+    return DatosTaller.get_solo()
 
 
 @dataclass(frozen=True)

@@ -1,8 +1,9 @@
 """
-Servicio de registro de ingresos.
+Servicios de escritura de fichas de visita.
 
-Implementa el caso de uso "llegó un auto": resolver o crear el cliente, resolver
-o crear el vehículo, y dejar la visita con sus trabajos en una sola transacción.
+Aquí viven los dos casos de uso que modifican una visita: registrar un ingreso
+(el auto llegó al mesón) y corregir una ficha ya guardada. Ambos comparten las
+reglas de las líneas de la ficha, que se validan antes de tocar la base de datos.
 """
 
 from __future__ import annotations
@@ -13,8 +14,21 @@ from datetime import date
 
 from django.db import transaction
 
-from apps.workshop.exceptions import IngresoDuplicadoError, PatenteInvalidaError
-from apps.workshop.models import Cliente, ItemTrabajo, OrdenTrabajo, Vehiculo
+from apps.workshop.exceptions import (
+    FichaVaciaError,
+    IngresoDuplicadoError,
+    LineaFichaInvalidaError,
+    PatenteInvalidaError,
+    TotalFichaNegativoError,
+)
+from apps.workshop.models import (
+    TOPE_PRECIO,
+    Cliente,
+    ItemTrabajo,
+    OrdenTrabajo,
+    TipoItemFicha,
+    Vehiculo,
+)
 from apps.workshop.patentes import is_valid_patente, normalize_patente
 from apps.workshop.telefonos import normalize_telefono
 
@@ -27,12 +41,14 @@ logger = logging.getLogger(__name__)
 
 
 @dataclass(frozen=True)
-class TrabajoSolicitado:
-    """Intervención que se registrará dentro de la visita."""
+class LineaFicha:
+    """Una línea de la ficha: el trabajo, su precio y los datos del repuesto."""
 
     tipo: str
-    descripcion: str = ""
-    repuesto: str = ""
+    precio: int = 0
+    detalle: str = ""
+    codigo_repuesto: str = ""
+    marca_repuesto: str = ""
 
 
 @dataclass(frozen=True)
@@ -52,7 +68,7 @@ class DatosIngreso:
     observaciones: str = ""
     proxima_mantencion_km: int | None = None
     proxima_mantencion_fecha: date | None = None
-    trabajos: tuple[TrabajoSolicitado, ...] = field(default_factory=tuple)
+    lineas: tuple[LineaFicha, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True)
@@ -67,7 +83,61 @@ class ResultadoIngreso:
 
 
 # ---------------------------------------------------------------------------
-# Servicio
+# Reglas de las líneas de la ficha
+# ---------------------------------------------------------------------------
+
+
+def validar_lineas(lineas: tuple[LineaFicha, ...]) -> None:
+    """
+    Comprueba las líneas antes de persistirlas (denegación por defecto).
+
+    Un descuento se escribe con precio negativo; ninguna otra línea puede
+    restar, y el total de la ficha nunca puede quedar bajo cero.
+    """
+    if not lineas:
+        raise FichaVaciaError()
+
+    for linea in lineas:
+        if linea.tipo not in TipoItemFicha.values:
+            raise LineaFichaInvalidaError(f"El trabajo '{linea.tipo}' no existe en el catálogo.")
+
+        if not -TOPE_PRECIO <= linea.precio <= TOPE_PRECIO:
+            raise LineaFichaInvalidaError(
+                f"El precio de '{linea.tipo}' está fuera del rango permitido."
+            )
+
+        if linea.precio < 0 and linea.tipo != TipoItemFicha.DESCUENTO:
+            raise LineaFichaInvalidaError(
+                f"Solo la línea de descuento puede llevar un monto negativo ('{linea.tipo}')."
+            )
+
+    total = sum(linea.precio for linea in lineas)
+    if total < 0:
+        raise TotalFichaNegativoError(total)
+
+
+def construir_items(orden: OrdenTrabajo, lineas: tuple[LineaFicha, ...]) -> list[ItemTrabajo]:
+    """
+    Traduce las líneas del contrato a filas de la base de datos.
+
+    Es una función pura: no guarda nada, para que los servicios decidan cuándo
+    persistir.
+    """
+    return [
+        ItemTrabajo(
+            orden=orden,
+            tipo=linea.tipo,
+            detalle=linea.detalle.strip()[:250],
+            codigo_repuesto=linea.codigo_repuesto.strip()[:60],
+            marca_repuesto=linea.marca_repuesto.strip()[:60],
+            precio=linea.precio,
+        )
+        for linea in lineas
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Servicio de registro
 # ---------------------------------------------------------------------------
 
 
@@ -93,12 +163,14 @@ class RegistroIngresoService:
         if not is_valid_patente(patente):
             raise PatenteInvalidaError(patente)
 
+        validar_lineas(datos.lineas)
+
         cliente, cliente_creado = self._resolver_cliente(datos)
         vehiculo, vehiculo_creado = self._resolver_vehiculo(patente, cliente, datos)
         self._asegurar_no_duplicado(vehiculo, datos)
 
         orden = self._crear_orden(vehiculo, datos)
-        self._crear_trabajos(orden, datos.trabajos)
+        self._crear_lineas(orden, datos.lineas)
 
         logger.info(
             "Ingreso registrado para la patente %s (visita %s).",
@@ -213,27 +285,53 @@ class RegistroIngresoService:
             proxima_mantencion_fecha=datos.proxima_mantencion_fecha,
         )
 
-    def _crear_trabajos(self, orden: OrdenTrabajo, trabajos: tuple[TrabajoSolicitado, ...]) -> None:
-        """Crea las intervenciones, descartando tipos repetidos que vengan del formulario."""
-        vistos: set[str] = set()
-        nuevos = []
-        for trabajo in trabajos:
-            if trabajo.tipo in vistos:
-                continue
-            vistos.add(trabajo.tipo)
-            nuevos.append(
-                ItemTrabajo(
-                    orden=orden,
-                    tipo=trabajo.tipo,
-                    descripcion=trabajo.descripcion.strip()[:250],
-                    repuesto=trabajo.repuesto.strip()[:150],
-                )
-            )
+    def _crear_lineas(self, orden: OrdenTrabajo, lineas: tuple[LineaFicha, ...]) -> None:
+        """Crea las líneas de la ficha, respetando el orden en que se agregaron."""
+        self._items.bulk_create(construir_items(orden, lineas))
 
-        if nuevos:
-            self._items.bulk_create(nuevos)
+
+# ---------------------------------------------------------------------------
+# Servicio de corrección de una ficha guardada
+# ---------------------------------------------------------------------------
+
+
+class ActualizarFichaService:
+    """
+    Corrige las líneas y las observaciones de una visita ya registrada.
+
+    No toca el vehículo, el dueño, la fecha ni el kilometraje: para eso está el
+    registro de un ingreso nuevo. Las líneas se reemplazan en una transacción,
+    de modo que la ficha nunca queda a medio corregir.
+    """
+
+    def __init__(self, *, items=ItemTrabajo.objects) -> None:
+        self._items = items
+
+    @transaction.atomic
+    def actualizar(
+        self,
+        orden: OrdenTrabajo,
+        *,
+        lineas: tuple[LineaFicha, ...],
+        observaciones: str = "",
+    ) -> OrdenTrabajo:
+        validar_lineas(lineas)
+
+        orden.observaciones = observaciones.strip()
+        orden.save(update_fields=["observaciones", "updated_at"])
+
+        self._items.filter(orden=orden).delete()
+        self._items.bulk_create(construir_items(orden, lineas))
+
+        logger.info("Ficha de la visita %s corregida.", orden.pk)
+        return orden
 
 
 def build_registro_ingreso_service() -> RegistroIngresoService:
     """Constructor del servicio con sus dependencias por defecto."""
     return RegistroIngresoService()
+
+
+def build_actualizar_ficha_service() -> ActualizarFichaService:
+    """Constructor del servicio de corrección con sus dependencias por defecto."""
+    return ActualizarFichaService()

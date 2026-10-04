@@ -2,12 +2,13 @@
 Modelos de la gestión del taller.
 
 El eje del sistema es la patente del vehículo: a partir de ella se llega al
-dueño y a todo el historial de intervenciones.
+dueño y a todo el historial de intervenciones. Cada visita guarda sus líneas
+de ficha con precio, y el total de la visita es la suma de esas líneas.
 """
 
 from __future__ import annotations
 
-from django.core.validators import MinValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 from django.utils import timezone
 
@@ -160,17 +161,38 @@ class Vehiculo(models.Model):
 # ---------------------------------------------------------------------------
 
 
-class TipoTrabajo(models.TextChoices):
-    """Catálogo de trabajos de frenos que realiza el taller."""
+# Tope de una línea de la ficha. Es simétrico: el mismo monto máximo para un
+# trabajo y para un descuento. Evita que un error de tipeo (un cero de más)
+# arruine el total de la visita.
+TOPE_PRECIO = 10_000_000
 
-    CAMBIO_PASTILLAS = "cambio_pastillas", "Cambio de pastillas"
-    CAMBIO_DISCOS = "cambio_discos", "Cambio de discos"
-    RECTIFICADO_DISCOS = "rectificado_discos", "Rectificado de discos"
-    CAMBIO_LIQUIDO = "cambio_liquido", "Cambio de líquido de frenos"
-    PURGA = "purga", "Purga de frenos"
-    REPARACION_CALIPERS = "reparacion_calipers", "Reparación de cálipers"
-    REVISION = "revision", "Revisión / diagnóstico"
-    OTRO = "otro", "Otro trabajo"
+
+class TipoItemFicha(models.TextChoices):
+    """
+    Catálogo de líneas de la ficha de trabajo.
+
+    Reproduce las líneas impresas de la ficha de papel del taller, más dos
+    opciones de servicio: ``DESCUENTO`` (se escribe con precio negativo) y
+    ``OTRO`` (para lo que no está en la lista).
+    """
+
+    PASTILLAS = "pastillas", "Pastillas"
+    RECT_DISCO = "rect_disco", "Rect. Disco"
+    PATINES = "patines", "Patines"
+    RECT_TAMBORES = "rect_tambores", "Rect. Tambores"
+    GOMAS_CILINDROS = "gomas_cilindros", "Gomas Cilindros"
+    LIQUIDO = "liquido", "Líquido"
+    SEGURO_PASTILLAS = "seguro_pastillas", "Seguro Pastillas"
+    REP_BOMBA = "rep_bomba", "Rep. Bomba"
+    KIT_BOMBA = "kit_bomba", "Kit Bomba"
+    INST_PIOLA = "inst_piola", "Inst. Piola F/Mano"
+    FLEXIBLE = "flexible", "Flexible"
+    RESORTE_PATIN = "resorte_patin", "Resorte Patín"
+    REP_CALIPER = "rep_caliper", "Rep. Caliper"
+    REGULACION_TRAS = "regulacion_tras", "Regulación Tras."
+    OBRA_MANO = "obra_mano", "Obra de Mano"
+    DESCUENTO = "descuento", "Descuento"
+    OTRO = "otro", "Otro (escribir en el detalle)"
 
 
 class OrdenTrabajoQuerySet(models.QuerySet):
@@ -243,12 +265,25 @@ class OrdenTrabajo(models.Model):
         return ", ".join(tipos) if tipos else "Sin detalle registrado"
 
     @property
+    def total(self) -> int:
+        """
+        Suma de las líneas de la ficha, en pesos.
+
+        Se calcula al leer y no se guarda en la base de datos: un total
+        almacenado puede quedar desincronizado de sus líneas. Los descuentos
+        restan solos, porque su precio es negativo. Los listados ya precargan
+        las líneas (``with_detalle`` en los selectores), así que esto no
+        dispara consultas adicionales.
+        """
+        return sum(item.precio for item in self.items.all())
+
+    @property
     def tiene_proxima_mantencion(self) -> bool:
         return bool(self.proxima_mantencion_km or self.proxima_mantencion_fecha)
 
 
 class ItemTrabajo(models.Model):
-    """Intervención puntual dentro de una orden de trabajo."""
+    """Línea de la ficha: un trabajo puntual dentro de una orden."""
 
     orden = models.ForeignKey(
         OrdenTrabajo,
@@ -256,14 +291,29 @@ class ItemTrabajo(models.Model):
         related_name="items",
         verbose_name="orden",
     )
-    tipo = models.CharField("tipo de trabajo", max_length=32, choices=TipoTrabajo.choices)
-    descripcion = models.CharField("detalle", max_length=250, blank=True)
-    repuesto = models.CharField("repuesto utilizado", max_length=150, blank=True)
+    tipo = models.CharField("trabajo", max_length=32, choices=TipoItemFicha.choices)
+    detalle = models.CharField(
+        "detalle",
+        max_length=250,
+        blank=True,
+        help_text="Texto libre: posición del trabajo (delantero, trasero), observación, etc.",
+    )
+    codigo_repuesto = models.CharField("código del repuesto", max_length=60, blank=True)
+    marca_repuesto = models.CharField("marca del repuesto", max_length=60, blank=True)
+    precio = models.IntegerField(
+        "precio",
+        default=0,
+        validators=[
+            MinValueValidator(-TOPE_PRECIO),
+            MaxValueValidator(TOPE_PRECIO),
+        ],
+        help_text="Pesos chilenos. Negativo solo en la línea de descuento.",
+    )
     created_at = models.DateTimeField("registrado el", auto_now_add=True)
 
     class Meta:
-        verbose_name = "trabajo realizado"
-        verbose_name_plural = "trabajos realizados"
+        verbose_name = "línea de la ficha"
+        verbose_name_plural = "líneas de la ficha"
         ordering = ["id"]
         indexes = [
             models.Index(fields=["orden", "tipo"], name="item_orden_tipo_idx"),
@@ -271,3 +321,50 @@ class ItemTrabajo(models.Model):
 
     def __str__(self) -> str:
         return f"{self.get_tipo_display()} ({self.orden})"
+
+    @property
+    def es_descuento(self) -> bool:
+        return self.tipo == TipoItemFicha.DESCUENTO
+
+
+# ---------------------------------------------------------------------------
+# Datos del taller
+# ---------------------------------------------------------------------------
+
+
+class DatosTaller(models.Model):
+    """
+    Datos del taller que se imprimen en la ficha entregada al cliente.
+
+    Es una fila única: el taller tiene una sola dirección y un solo teléfono.
+    El nombre y el rubro no se guardan aquí porque no cambian y viven como
+    título fijo de la plantilla de impresión.
+    """
+
+    direccion = models.CharField("dirección", max_length=200, blank=True)
+    ciudad = models.CharField("ciudad", max_length=80, blank=True)
+    telefono = models.CharField(
+        "teléfono",
+        max_length=32,
+        blank=True,
+        help_text="Tal como debe salir impreso, por ejemplo 225 384 512.",
+    )
+    actualizado_el = models.DateTimeField("actualizado el", auto_now=True)
+
+    class Meta:
+        verbose_name = "datos del taller"
+        verbose_name_plural = "datos del taller"
+
+    def __str__(self) -> str:
+        return self.direccion or "Datos del taller"
+
+    # Efecto secundario explícito: fuerza la fila única (pk=1) para que no
+    # puedan coexistir dos encabezados distintos.
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        return super().save(*args, **kwargs)
+
+    @classmethod
+    def get_solo(cls) -> DatosTaller:
+        """La única fila; si todavía no existe, una instancia vacía."""
+        return cls.objects.first() or cls()

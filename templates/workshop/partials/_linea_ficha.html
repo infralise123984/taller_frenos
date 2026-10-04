@@ -1,0 +1,73 @@
+{# Una línea de la ficha. Recibe `linea`: un formulario del formset. #}
+<div class="fila-ficha rounded-xl border border-slate-200 bg-white p-3 shadow-sm sm:p-4" data-fila>
+
+  <div class="grid gap-3 sm:grid-cols-12">
+
+    <div class="sm:col-span-3">
+      <label for="{{ linea.tipo.id_for_label }}"
+             class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Trabajo
+      </label>
+      {{ linea.tipo }}
+      {{ linea.tipo.errors }}
+    </div>
+
+    <div class="sm:col-span-3">
+      <label for="{{ linea.detalle.id_for_label }}"
+             class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Detalle
+      </label>
+      {{ linea.detalle }}
+      {{ linea.detalle.errors }}
+    </div>
+
+    <div class="sm:col-span-2">
+      <label for="{{ linea.codigo_repuesto.id_for_label }}"
+             class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Código
+      </label>
+      {{ linea.codigo_repuesto }}
+      {{ linea.codigo_repuesto.errors }}
+    </div>
+
+    <div class="sm:col-span-2">
+      <label for="{{ linea.marca_repuesto.id_for_label }}"
+             class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Marca
+      </label>
+      {{ linea.marca_repuesto }}
+      {{ linea.marca_repuesto.errors }}
+    </div>
+
+    <div class="sm:col-span-2">
+      <label for="{{ linea.precio.id_for_label }}"
+             class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Precio
+      </label>
+      {{ linea.precio }}
+      {{ linea.precio.errors }}
+    </div>
+
+  </div>
+
+  <div class="mt-2 flex items-center justify-between gap-3">
+    <p class="text-xs text-slate-400">
+      Un descuento se escribe con el monto en negativo.
+    </p>
+
+    <label class="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-600 transition hover:bg-slate-50">
+      <input type="checkbox"
+             name="{{ linea.DELETE.html_name }}"
+             id="{{ linea.DELETE.id_for_label }}"
+             class="borrar-linea h-4 w-4"
+             {% if linea.DELETE.value %}checked{% endif %}>
+      <span class="etiqueta-quitar">Quitar línea</span>
+      <span class="etiqueta-quitada">Se quitará al guardar</span>
+    </label>
+  </div>
+
+  {% if linea.non_field_errors %}
+    <div class="mt-2">{{ linea.non_field_errors }}</div>
+  {% endif %}
+
+</div>

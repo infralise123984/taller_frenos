@@ -57,6 +57,10 @@ impresa** al cliente —con los datos del taller (dirección, ciudad y teléfono
 | Los datos del taller (dirección, fono) solo existen en el papel | Modelo `DatosTaller` editables e impresos en la ficha |
 | `TipoTrabajo` (8 valores: cambio de pastillas, purga, revisión…) | Los 15 nombres exactos del papel |
 
+> **Estado:** todo lo anterior está implementado en la rama
+> `feature/ficha-trabajo` (fases del §12). Este documento sigue siendo la regla
+> vigente para cualquier cambio futuro en la ficha.
+
 ---
 
 ## 4. Diseño de dominio
@@ -90,6 +94,8 @@ class TipoItemFicha(models.TextChoices):
 ### 4.2 `ItemTrabajo` (línea de la ficha)
 
 ```python
+TOPE_PRECIO = 10_000_000   # constante del módulo: un cero de más no arruina el total
+
 tipo = models.CharField("trabajo", max_length=32, choices=TipoItemFicha.choices)
 detalle = models.CharField("detalle", max_length=250, blank=True)   # ej. "trasero"
 codigo_repuesto = models.CharField("código del repuesto", max_length=60, blank=True)
@@ -100,6 +106,9 @@ precio = models.IntegerField(
     validators=[MinValueValidator(-TOPE_PRECIO), MaxValueValidator(TOPE_PRECIO)],
 )
 ```
+
+`TOPE_PRECIO` vale 10 millones de pesos: sobra para cualquier línea de un taller
+de frenos y evita aceptar un monto absurdo por un error de tipeo.
 
 - Renombres: `descripcion` → `detalle` (mismo campo, nombre alineado al boceto),
   `repuesto` → `codigo_repuesto`.
@@ -114,8 +123,16 @@ precio = models.IntegerField(
 
 Propiedad calculada, **no** columna almacenada: un total guardado puede quedar
 desincronizado de sus líneas. Los descuentos restan solos, porque su precio es
-negativo. Se calcula en Python y, para los listados, con
-`annotate(Sum("items__precio"))` en el selector.
+negativo.
+
+```python
+@property
+def total(self) -> int:
+    return sum(item.precio for item in self.items.all())
+```
+
+Los selectores ya precargan las líneas (`with_detalle`), así que leer el total en
+un listado no dispara consultas adicionales: no hace falta `annotate(Sum(...))`.
 
 ```python
 @property
@@ -164,9 +181,9 @@ class DatosTaller(models.Model):
   para que las vistas no consulten el modelo directo.
 - `get_solo()` nunca devuelve `None`: la ficha imprimible funciona aunque nadie
   haya configurado los datos todavía (campos vacíos no se imprimen).
-- La migración inicial crea la fila con los datos actuales del papel
-  (Alameda N° 0779 al llegar a Av. Victoria, Rancagua, fono 225 384 512) para que
-  el sistema quede configurado desde el primer arranque.
+- **No** se siembra la fila desde la migración: los datos reales del taller se
+  cargan desde el admin, y en los entornos de demostración los deja
+  `seed_demo` (dirección, ciudad y teléfono del papel actual).
 
 ### 4.5 Migración (solo esquema, sin datos)
 
@@ -203,10 +220,17 @@ una línea → completar precio / detalle / código**.
 - Un desplegable "Agregar trabajo…" con el catálogo completo (§4.1: las 15 líneas
   del papel más `Descuento` y `Otro`); al elegir una opción, se agrega una fila en
   blanco con ese tipo. La primera fila parte ya visible.
+- El desplegable de cada fila **parte sin trabajo elegido** ("Elige un trabajo…"):
+  la elección es consciente y no se cuela un "Pastillas" por defecto. Si la fila
+  se deja entera en blanco, se ignora; si trae un precio y ningún trabajo, el
+  sistema responde "Elige el trabajo de esta línea".
 - Cada fila: `tipo` (select), `detalle` (texto), `codigo_repuesto` (texto),
   `marca_repuesto` (texto), `precio` (número, acepta negativos) y botón "Quitar".
 - La línea `Descuento` con precio negativo resta del total. El campo acepta el
   signo menos; el resto son montos positivos.
+- "Quitar línea" **no borra la fila**: la deja atenuada, avisa "Se quitará al
+  guardar" y se puede desmarcar. Nunca se pierde lo ya escrito por un clic
+  apurado.
 - El total se muestra abajo y se recalcula al escribir un precio.
 - Permitir la **misma línea repetida** (dos cambios de pastillas en el mismo auto).
 - Sin JavaScript la ficha sigue funcionando: el formset se envía completo y el
@@ -214,36 +238,52 @@ una línea → completar precio / detalle / código**.
 
 ### 5.2 Implementación
 
-- `forms.py`: `LineaFichaForm` (fields del §4.2) y `LineaFichaFormSet`
-  (`forms.BaseInlineFormSet` o `formset_factory` con `extra=1`,
-  `can_delete=True`, `max_num=30`, `min_num=1`, `validate_min=True`).
+- `forms.py`: `LineaFichaForm` (campos del §4.2) y `LineaFichaFormSet`
+  (`formset_factory` con `extra=1`, `can_delete=True`, `validate_max=True` y
+  `max_num=MAX_LINEAS_FICHA`). El mínimo de una línea **no** se pide con
+  `validate_min`, sino en `BaseLineaFichaFormSet.clean`, para dar el mensaje con
+  las palabras del taller ("Agrega al menos una línea a la ficha") en vez del
+  genérico de Django.
+- El prefijo del formset vive en `PREFIJO_LINEAS` (en `forms.py`), porque lo usan
+  la vista, las plantillas y el JavaScript.
 - `IngresoRapidoForm` deja de tener `trabajos` (MultipleChoiceField) y
   `grouped_trabajos()`; el formset se instancia en la vista y se pasa al template.
   El resto del formulario (vehículo, cliente, visita, próxima mantención) queda
   igual, así la operadora no reaprende nada del flujo que ya usa.
-- Template: `templates/workshop/partials/_linea_ficha.html` para la fila, y un
-  `<template>` HTML clonado por un JS mínimo (vanilla, sin build step) para
-  "Agregar trabajo". Sin framework JS: el proyecto no tiene bundler.
+- Templates: `templates/workshop/partials/_linea_ficha.html` para la fila y
+  `_ficha_lineas.html` para el bloque completo (líneas, agregar, total y
+  observaciones), compartido por el ingreso y por la corrección.
+- `static/js/ficha.js` (vanilla, sin build step, cargado con `{% block scripts %}`)
+  clona el `<template>` de la fila, actualiza `TOTAL_FORMS` y recalcula el total.
+  El proyecto no tiene bundler; el archivo debe existir antes del `collectstatic`
+  de Render o el manifiesto de estáticos falla.
+- Los controles que no son campos de formulario (el desplegable "Agregar
+  trabajo", botones) toman sus clases de `apps/ui.py` con los `simple_tag` de
+  [`templatetags/ui.py`](../../apps/workshop/templatetags/ui.py).
 - La vista sigue igual de simple: valida formset + form y delega al servicio.
 
 ---
 
 ## 6. Edición de una ficha guardada
 
-- Rutas nuevas: `GET /taller/ingresos/<pk>/editar/` y el mismo POST.
-- Servicio `ActualizarFichaService` (o `RegistroIngresoService.actualizar`) que,
-  en una transacción, reemplaza las líneas: actualiza las existentes, crea las
-  nuevas y borra las marcadas. Nada de `bulk_update` con objetos parciales.
-- Editar **no** duplica la visita ni cambia la fecha de ingreso por defecto.
-- Solo se puede editar desde la ficha del vehículo; enlace "Editar ficha" con
-  botón grande.
+- Rutas: `GET` y `POST /taller/ingresos/<pk>/editar/` → `workshop/ficha_editar.html`.
+- `ActualizarFichaService.actualizar(...)` reemplaza las líneas dentro de una
+  transacción: borra las anteriores y crea las nuevas ya validadas. Nada de
+  `bulk_update` con objetos parciales.
+- La pantalla de corrección edita **líneas y observaciones**, y nada más: el
+  vehículo, el dueño, la fecha y el kilometraje identifican la visita en el
+  historial del auto. Un dato mal digitado de esos se corrige registrando la
+  visita de nuevo.
+- Si la corrección no pasa la validación, la ficha original queda intacta: no se
+  borra nada hasta que todo esté en orden.
+- Se llega desde "Corregir ficha", en cada visita del historial del vehículo.
 
 ---
 
 ## 7. Servicios de dominio
 
-`TrabajoSolicitado` ([`services/ingresos.py`](../../apps/workshop/services/ingresos.py)) se
-extiende para reflejar la línea real:
+`TrabajoSolicitado` se reemplazó por `LineaFicha`
+([`services/ingresos.py`](../../apps/workshop/services/ingresos.py)):
 
 ```python
 @dataclass(frozen=True)
@@ -257,9 +297,17 @@ class LineaFicha:
 
 - El **total se calcula en el servidor** al leer la ficha; nunca se acepta un
   total enviado desde el navegador.
-- El servicio valida que `tipo` pertenezca a `TipoItemFicha` (denegación por
-  defecto) y que `precio` esté dentro del rango permitido (negativo solo tiene
-  sentido en la línea `Descuento`).
+- `validar_lineas(...)` es una función pura que se ejecuta antes de tocar la base
+  de datos y aplica las reglas con excepciones de dominio: ficha sin líneas
+  (`FichaVaciaError`), trabajo fuera del catálogo o monto negativo fuera de
+  `Descuento` (`LineaFichaInvalidaError`) y total bajo cero
+  (`TotalFichaNegativoError`). Denegación por defecto: el formulario valida lo
+  mismo, y el servicio no confía en el formulario.
+- `construir_items(...)` traduce las líneas a filas sin guardar nada; los dos
+  servicios la comparten en vez de duplicar el armado de la línea.
+- `RegistroIngresoService` registra la visita completa y `ActualizarFichaService`
+  corrige una ya guardada (reemplaza sus líneas y sus observaciones en una
+  transacción, sin tocar vehículo, dueño, fecha ni kilometraje).
 - Se mantiene la inyección actual (`items=ItemTrabajo.objects`) para poder probar
   con dobles, sin tocar la base de datos.
 
@@ -280,6 +328,9 @@ class LineaFicha:
   campo vacío no deje líneas sueltas. El teléfono se imprime legible para
   marcarlo desde el papel (ej. `225 384 512`).
 - CSS `@media print` para que salga en una hoja, sin navegación ni botones.
+  Tailwind llega por CDN y se inyecta **después** de `app.css`, así que las reglas
+  de impresión que compiten con sus clases (`.ficha-impresa`, `main`) llevan
+  `!important`; sin eso el ancho y el relleno del contenedor se cuelan al papel.
 - Formato de moneda chileno con `intcomma` y `$` delante, ya usado en
   [`_orden_card.html`](../../templates/workshop/partials/_orden_card.html).
 
@@ -289,16 +340,17 @@ class LineaFicha:
 
 | Archivo | Qué cubre |
 | --- | --- |
-| `test_registro_ingreso.py` | Línea con precio, código y detalle se guarda tal cual; `total` suma las líneas y **resta el descuento**; servicio rechaza `tipo` fuera del catálogo y precio fuera de rango |
-| `test_ficha_formset.py` (nuevo) | Formset válido/inválido, línea repetida permitida, línea sin precio permitida, borrar línea, ficha sin líneas rechazada, descuento mayor que el total rechazado |
-| `test_edicion_ficha.py` (nuevo) | Editar agrega, modifica y borra líneas; el total del servidor manda sobre un total falso enviado por POST |
-| `test_ficha_imprimible.py` (nuevo) | La vista responde 200, muestra patente, líneas y total; usuario anónimo es redirigido al login (denegación por defecto) |
-| `test_datos_taller.py` (nuevo) | `save()` dos veces deja una sola fila; `get_solo()` sin fila devuelve una instancia vacía; la ficha imprimible muestra dirección, ciudad y teléfono |
-| `test_views.py` (ampliar) | Regresión de lo que ya funciona (§15): buscar por patente encuentra al cliente que vuelve, la ficha del vehículo muestra su historial y la ficha del cliente sus vehículos, con el ingreso nuevo registrado por formset |
+| `test_registro_ingreso.py` | Línea con precio, código y detalle se guarda tal cual; `total` suma las líneas y **resta el descuento**; permite repetir el mismo trabajo; servicio rechaza `tipo` fuera del catálogo, precio fuera de rango, ficha vacía y descuento mayor que el trabajo |
+| `test_ficha_formset.py` | Formset válido/inválido, línea repetida permitida, línea sin precio permitida, línea con precio y sin trabajo rechazada, borrar línea, ficha sin líneas rechazada, descuento mayor que el total rechazado, tope de 30 líneas |
+| `test_edicion_ficha.py` | Editar agrega, modifica y borra líneas; el total del servidor manda sobre un total falso enviado por POST; no se puede cambiar fecha ni kilometraje; al rechazar no se pierde la ficha original |
+| `test_ficha_imprimible.py` | La vista responde 200, muestra patente, líneas usadas y total; **no** imprime kilometraje ni próxima mantención; usuario anónimo es redirigido al login |
+| `test_ficha_imprimible.py` (`EncabezadoDelTallerTests`) | El encabezado imprime dirección, ciudad y teléfono; sin datos configurados la ficha sale igual |
+| `test_ficha_imprimible.py` (`DatosTallerTests`) | `save()` dos veces deja una sola fila; `get_solo()` sin fila devuelve una instancia vacía |
+| `tests/helpers.py` | `payload_lineas(...)` arma los datos del formset, incluido el formulario de gestión |
+| `test_views.py` | Regresión de lo que ya funciona (§15): buscar por patente encuentra al cliente que vuelve, la ficha del vehículo muestra su historial y la ficha del cliente sus vehículos, con el ingreso nuevo registrado por formset |
 
-También hay que actualizar las pruebas y el `seed_demo` que hoy usan
-`TipoTrabajo` ([`test_views.py`](../../apps/workshop/tests/test_views.py),
-[`seed_demo.py`](../../apps/workshop/management/commands/seed_demo.py)).
+`seed_demo` también se actualizó al catálogo nuevo: carga precios, códigos y los
+datos del taller, para que la ficha impresa se pueda revisar con datos reales.
 
 ---
 
@@ -352,10 +404,10 @@ También hay que actualizar las pruebas y el `seed_demo` que hoy usan
 | Fase | Trabajo | Verificación |
 | --- | --- | --- |
 | 1 | Enum `TipoItemFicha` + campos de `ItemTrabajo` (migración solo de esquema, sin datos) | `python manage.py test apps.workshop.tests.test_registro_ingreso` |
-| 2 | `total` (con descuentos) + selector con `Sum` + actualización de `seed_demo` | `python manage.py test apps.workshop.tests.test_registro_ingreso` |
+| 2 | `total` (con descuentos) + actualización de `seed_demo` | `python manage.py test apps.workshop.tests.test_registro_ingreso` |
 | 3 | Formset y menú desplegable en el ingreso | `python manage.py test apps.workshop.tests.test_ficha_formset` |
 | 4 | Edición de ficha guardada | `python manage.py test apps.workshop.tests.test_edicion_ficha` |
-| 5 | `DatosTaller` + admin + migración con los datos del taller | `python manage.py test apps.workshop.tests.test_datos_taller` |
+| 5 | `DatosTaller` + admin | `python manage.py test apps.workshop.tests.test_ficha_imprimible` |
 | 6 | Ficha imprimible con encabezado, líneas y total | `python manage.py test apps.workshop.tests.test_ficha_imprimible` |
 | 7 | Historial con total, admin actualizado (`ItemTrabajo`, `DatosTaller`), README y estáticos | `python manage.py test` (suite completa) + `ruff check` + `ruff format --check` |
 
@@ -363,6 +415,11 @@ Cada fase se cierra con su prueba nueva en verde **y con las pruebas existentes
 intactas** (ver §15). Al final: `python manage.py test` completo, `ruff check` y
 `ruff format --check` (lo mismo que corre el CI de
 [ci.yml](../../.github/workflows/ci.yml)).
+
+Las siete fases quedaron implementadas en la rama `feature/ficha-trabajo`
+(163 pruebas en verde). Antes de dar una fase por cerrada se revisó además la
+pantalla en el navegador: el desplegable agrega la fila, el total se recalcula y
+la ficha impresa cabe en una hoja.
 
 ---
 
@@ -402,25 +459,30 @@ línea negativa y sin precio sugerido (§2).
 
 ### 14.2 Trabajo pendiente de listar en las fases (no requiere decisión)
 
-1. **Admin desactualizado**: `ItemTrabajoAdmin` usa `repuesto` y `descripcion` en
-   `list_display` / `search_fields` ([`admin.py`](../../apps/workshop/admin.py)) y se
-   rompe con los renombres del §4.2.
-2. **JavaScript y estáticos**: el proyecto no tiene `static/js/`. Hay que crear el
-   archivo, cargarlo con `{% static %}` en [`base.html`](../../templates/base.html) y
-   verificar que exista antes del `collectstatic` de Render: en producción se usa
-   `CompressedManifestStaticFilesStorage`, que falla si el archivo no está.
-3. **Línea en pantallas chicas**: cinco campos por fila no caben en un teléfono.
-   Falta definir la fila apilada como tarjeta en móvil y en línea en escritorio.
-4. **Documentación**: agregar las rutas nuevas (editar, imprimir) a la tabla
-   "Pantallas" y `DatosTaller` a "Modelo de datos" del
-   [README](../../README.md), y registrar las rutas en
-   [`urls.py`](../../apps/workshop/urls.py).
-5. **Tope de precio y de líneas**: definir el valor de `TOPE_PRECIO` (constante,
-   misma cifra para positivos y descuentos) y el tope de 30 líneas por ficha.
-6. **Botón "Imprimir"** en la ficha del vehículo y en el historial, para reimprimir
-   una visita pasada sin entrar a editarla.
-7. **Sin auditoría**: no hay registro de quién cambió un precio. Si importa, es un
+Resuelto en la rama `feature/ficha-trabajo`:
+
+1. ~~Admin desactualizado~~: `ItemTrabajoAdmin` y `DatosTallerAdmin` ya usan los
+   campos nuevos, y `DatosTallerAdmin` bloquea crear una segunda fila o borrar la
+   única.
+2. ~~JavaScript y estáticos~~: `static/js/ficha.js` existe, se carga con
+   `{% block scripts %}` y está pensado para sobrevivir al `collectstatic` de
+   Render.
+3. ~~Tope de precio y de líneas~~: `TOPE_PRECIO = 10_000_000` y
+   `MAX_LINEAS_FICHA = 30`.
+4. ~~Botón "Imprimir"~~: cada visita del historial tiene "Corregir ficha" e
+   "Imprimir".
+5. ~~Documentación~~: rutas y modelo de datos en el [README](../../README.md).
+
+Queda pendiente:
+
+1. **Línea en pantallas chicas**: la fila apila sus cinco campos en móvil y los
+   pone en una línea en escritorio. Conviene revisarlo en el teléfono real de la
+   encargada antes de darlo por bueno.
+2. **Sin auditoría**: no hay registro de quién cambió un precio. Si importa, es un
    modelo nuevo y merece su propio plan.
+3. **Datos del taller**: hoy se editan en el admin de Django. Si a la encargada le
+   resulta incómodo, el siguiente paso es una pantalla "Datos del taller" dentro
+   del sistema, sobre el mismo modelo.
 
 ---
 
