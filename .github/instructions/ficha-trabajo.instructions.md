@@ -228,9 +228,10 @@ una línea → completar precio / detalle / código**.
   `marca_repuesto` (texto), `precio` (número, acepta negativos) y botón "Quitar".
 - La línea `Descuento` con precio negativo resta del total. El campo acepta el
   signo menos; el resto son montos positivos.
-- "Quitar línea" **no borra la fila**: la deja atenuada, avisa "Se quitará al
-  guardar" y se puede desmarcar. Nunca se pierde lo ya escrito por un clic
-  apurado.
+- "Quitar línea" **hace desaparecer la fila de inmediato**, para que no quede a
+  la vista una línea que no se va a guardar. Como un clic apurado no debe costar
+  lo que ya estaba escrito, aparece un "Deshacer" bajo las líneas que devuelve
+  las filas quitadas mientras no se haya guardado todavía.
 - El total se muestra abajo y se recalcula al escribir un precio.
 - Permitir la **misma línea repetida** (dos cambios de pastillas en el mismo auto).
 - Sin JavaScript la ficha sigue funcionando: el formset se envía completo y el

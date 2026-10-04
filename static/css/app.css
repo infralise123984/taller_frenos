@@ -8,22 +8,11 @@
   pointer-events: none;
 }
 
-/* Una línea marcada como "quitar" queda atenuada y avisada, no desaparece: así
-   se puede desmarcar sin perder lo que ya estaba escrito. */
-.etiqueta-quitada {
-  display: none;
-}
-
+/* Una línea marcada como "quitar" desaparece de la ficha, con o sin JavaScript.
+   Quien la marcó por error puede deshacerlo con el botón que aparece bajo las
+   líneas, sin perder lo que ya estaba escrito. */
 .fila-ficha:has(.borrar-linea:checked) {
-  opacity: 0.55;
-}
-
-.fila-ficha:has(.borrar-linea:checked) .etiqueta-quitar {
   display: none;
-}
-
-.fila-ficha:has(.borrar-linea:checked) .etiqueta-quitada {
-  display: inline;
 }
 
 /* Evita que el navegador móvil haga zoom al enfocar campos de texto. */

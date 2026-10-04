@@ -17,6 +17,8 @@
   var plantilla = document.getElementById("plantilla-linea");
   var selector = document.querySelector("[data-selector-trabajo]");
   var botonAgregar = document.querySelector("[data-agregar-linea]");
+  var avisoQuitadas = document.querySelector("[data-aviso-quitadas]");
+  var botonDeshacer = document.querySelector("[data-deshacer-quitar]");
   var totalFormulario = document.getElementById("id_lineas-TOTAL_FORMS");
   var formato = new Intl.NumberFormat("es-CL");
 
@@ -24,12 +26,32 @@
     return totalFormulario ? parseInt(totalFormulario.value, 10) || 0 : 0;
   }
 
+  function filas() {
+    return Array.prototype.slice.call(contenedor.querySelectorAll("[data-fila]"));
+  }
+
+  function estaQuitada(fila) {
+    var borrar = fila.querySelector(".borrar-linea");
+    return Boolean(borrar && borrar.checked);
+  }
+
+  function actualizarAviso() {
+    if (!avisoQuitadas) {
+      return;
+    }
+    var hayQuitadas = filas().some(estaQuitada);
+    avisoQuitadas.classList.toggle("hidden", !hayQuitadas);
+  }
+
   function actualizarTotal() {
     var total = 0;
 
-    contenedor.querySelectorAll("[data-fila]").forEach(function (fila) {
-      var borrar = fila.querySelector(".borrar-linea");
-      if (borrar && borrar.checked) {
+    filas().forEach(function (fila) {
+      var quitada = estaQuitada(fila);
+      // El CSS ya la esconde; esto lo repite para los navegadores sin :has().
+      fila.hidden = quitada;
+
+      if (quitada) {
         return;
       }
 
@@ -40,6 +62,8 @@
     document.querySelectorAll("[data-total-ficha]").forEach(function (salida) {
       salida.textContent = formato.format(total);
     });
+
+    actualizarAviso();
   }
 
   function agregarLinea(tipo) {
@@ -74,6 +98,16 @@
     }
   }
 
+  function deshacerQuitadas() {
+    filas().forEach(function (fila) {
+      var borrar = fila.querySelector(".borrar-linea");
+      if (borrar && borrar.checked) {
+        borrar.checked = false;
+      }
+    });
+    actualizarTotal();
+  }
+
   if (botonAgregar) {
     botonAgregar.addEventListener("click", function () {
       agregarLinea(selector ? selector.value : "");
@@ -82,6 +116,10 @@
         selector.focus();
       }
     });
+  }
+
+  if (botonDeshacer) {
+    botonDeshacer.addEventListener("click", deshacerQuitadas);
   }
 
   contenedor.addEventListener("input", actualizarTotal);

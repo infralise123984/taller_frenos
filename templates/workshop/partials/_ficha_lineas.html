@@ -35,6 +35,14 @@
     {% endfor %}
   </div>
 
+  <p class="mt-3 hidden text-sm text-slate-500" data-aviso-quitadas>
+    Se quitó una línea.
+    <button type="button" data-deshacer-quitar
+            class="font-semibold text-sky-700 underline hover:text-sky-900">
+      Deshacer
+    </button>
+  </p>
+
   {# Fila en blanco que el navegador clona al agregar una línea. #}
   <template id="plantilla-linea">
     {% include "workshop/partials/_linea_ficha.html" with linea=formset.empty_form %}
