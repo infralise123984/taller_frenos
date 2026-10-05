@@ -53,8 +53,10 @@
 
   <div class="mt-3 flex justify-end">
 
-    {# El botón es lo que se ve; la casilla real que Django espera queda oculta
-       detrás, porque una línea ya guardada solo se borra si llega su DELETE. #}
+    {% comment %}
+      El botón es lo que se ve; la casilla real que Django espera queda oculta
+      detrás, porque una línea ya guardada solo se borra si llega su DELETE.
+    {% endcomment %}
     <div class="campo-borrar" aria-hidden="true">
       {{ linea.DELETE }}
     </div>

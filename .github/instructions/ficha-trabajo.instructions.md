@@ -270,6 +270,12 @@ una línea → completar precio / detalle / código**.
   quedaron en blanco: Django entrega estas últimas con `cleaned_data` vacío, y la
   fila de sobra siempre viaja en el formulario (documentado en `payload_lineas`
   de las pruebas, que acepta `blancas=N`).
+- **Comentarios de plantilla en una sola línea.** ``{# ... #}`` solo es un
+  comentario si abre y cierra en la misma línea; si no, Django imprime el texto
+  en la página y el usuario lo ve. Para comentarios de varias líneas se usa
+  ``{% comment %} ... {% endcomment %}``. Las pruebas de fugas de plantilla
+  (`FugasDePlantillaTests`) recorren las pantallas y fallan si aparece un ``{#``,
+  ``{%`` o ``{{`` sin resolver.
 - Los controles que no son campos de formulario (el desplegable "Agregar
   trabajo", botones) toman sus clases de `apps/ui.py` con los `simple_tag` de
   [`templatetags/ui.py`](../../apps/workshop/templatetags/ui.py).

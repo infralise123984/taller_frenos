@@ -142,6 +142,48 @@ class FichaClienteTests(BaseAutenticadaTests):
         self.assertContains(respuesta, "+56 9 8123 4567")
 
 
+class FugasDePlantillaTests(BaseAutenticadaTests):
+    """
+    Ninguna página debe mostrar marcadores de plantilla como texto.
+
+    Django solo reconoce ``{# ... #}`` cuando el comentario abre y cierra en la
+    misma línea; un ``{#`` suelto se imprime tal cual y aparece en pantalla. Lo
+    mismo vale para ``{%`` y ``{{``. Estas pruebas recorren las pantallas del
+    taller para que el error se vea antes de llegar al mesón.
+    """
+
+    def _marcadores(self, html: str) -> list[str]:
+        return [marcador for marcador in ("{#", "{%", "{{") if marcador in html]
+
+    def _paginas(self) -> dict[str, str]:
+        orden = self.crear_orden()
+        return {
+            "buscar": reverse("workshop:buscar"),
+            "ingreso": reverse("workshop:ingreso_create"),
+            "vehiculo": reverse("workshop:vehiculo", args=[self.vehiculo.patente]),
+            "cliente": reverse("workshop:cliente", args=[self.cliente.pk]),
+            "editar": reverse("workshop:ficha_editar", args=[orden.pk]),
+            "imprimir": reverse("workshop:ficha_imprimir", args=[orden.pk]),
+        }
+
+    def test_las_pantallas_no_muestran_marcadores_de_plantilla(self) -> None:
+        for nombre, ruta in self._paginas().items():
+            with self.subTest(pantalla=nombre):
+                respuesta = self.client.get(ruta)
+
+                self.assertEqual(respuesta.status_code, 200)
+                self.assertEqual(self._marcadores(respuesta.content.decode()), [])
+
+    def test_el_formulario_con_errores_tampoco_los_muestra(self) -> None:
+        respuesta = self.client.post(
+            reverse("workshop:ingreso_create"),
+            {"patente": "123456"},
+        )
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(self._marcadores(respuesta.content.decode()), [])
+
+
 class RegistroIngresoTests(BaseAutenticadaTests):
     def _payload(self, **overrides) -> dict[str, object]:
         datos: dict[str, object] = {
