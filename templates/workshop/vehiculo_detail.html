@@ -14,7 +14,11 @@
     <div class="flex flex-wrap items-start justify-between gap-4">
       <div>
         <p class="text-4xl font-black tracking-[0.2em] text-slate-900">{{ vehiculo.patente }}</p>
-        <p class="mt-1 text-slate-500">{{ vehiculo.descripcion_corta }}{% if vehiculo.color %} · {{ vehiculo.color }}{% endif %}</p>
+        {% if vehiculo.descripcion_corta or vehiculo.color %}
+          <p class="mt-1 text-slate-500">
+            {{ vehiculo.descripcion_corta }}{% if vehiculo.color %}{% if vehiculo.descripcion_corta %} · {% endif %}{{ vehiculo.color }}{% endif %}
+          </p>
+        {% endif %}
       </div>
 
       <a href="{% url 'workshop:ingreso_create' %}?patente={{ vehiculo.patente }}"
@@ -62,19 +66,21 @@
       <div>
         <a href="{% url 'workshop:cliente' vehiculo.cliente.pk %}"
            class="text-lg font-semibold text-sky-800 hover:underline">
-          {{ vehiculo.cliente.nombre }}
+          {{ vehiculo.cliente.nombre|default:"Cliente sin nombre" }}
         </a>
         <p class="mt-0.5 text-sm text-slate-500">
-          {{ vehiculo.cliente.telefono|telefono_legible }}
+          {{ vehiculo.cliente.telefono|telefono_legible|default:"Sin teléfono" }}
           {% if vehiculo.cliente.email %} · {{ vehiculo.cliente.email }}{% endif %}
         </p>
       </div>
 
-      <a href="https://wa.me/{{ vehiculo.cliente.telefono }}"
-         target="_blank" rel="noopener noreferrer"
-         class="no-print inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-base font-semibold text-emerald-800 transition hover:bg-emerald-100">
-        Avisar por WhatsApp
-      </a>
+      {% if vehiculo.cliente.telefono %}
+        <a href="https://wa.me/{{ vehiculo.cliente.telefono }}"
+           target="_blank" rel="noopener noreferrer"
+           class="no-print inline-flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-base font-semibold text-emerald-800 transition hover:bg-emerald-100">
+          Avisar por WhatsApp
+        </a>
+      {% endif %}
     </div>
   </section>
 

@@ -29,22 +29,15 @@
       <h2 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">Vehículo</h2>
 
       {% include "partials/_field.html" with field=form.patente %}
-
-      <div class="grid gap-x-4 sm:grid-cols-2">
-        {% include "partials/_field.html" with field=form.marca %}
-        {% include "partials/_field.html" with field=form.modelo %}
-      </div>
-      <div class="grid gap-x-4 sm:grid-cols-2">
-        {% include "partials/_field.html" with field=form.anio %}
-        {% include "partials/_field.html" with field=form.color %}
-      </div>
+      {% include "workshop/partials/_aviso_patente.html" %}
+      {% include "partials/_field.html" with field=form.marca %}
     </section>
 
     {# -------------------------------- Cliente -------------------------------- #}
     <section class="mb-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
       <h2 class="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500">Dueño del vehículo</h2>
       <p class="mb-4 text-xs text-slate-400">
-        Si el teléfono ya está registrado, se reutiliza la ficha del cliente.
+        Nombre y teléfono son opcionales. Si ingresas el teléfono registrado, se reutiliza la ficha.
       </p>
 
       {% include "partials/_field.html" with field=form.cliente_nombre %}
@@ -56,10 +49,7 @@
     <section class="mb-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
       <h2 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">Visita de hoy</h2>
 
-      <div class="grid gap-x-4 sm:grid-cols-2">
-        {% include "partials/_field.html" with field=form.fecha_ingreso %}
-        {% include "partials/_field.html" with field=form.kilometraje %}
-      </div>
+      {% include "partials/_field.html" with field=form.fecha_ingreso %}
     </section>
 
     {# -------------------------- Ficha del trabajo ---------------------------- #}
@@ -93,4 +83,5 @@
 
 {% block scripts %}
   <script src="{% static 'js/ficha.js' %}" defer></script>
+  <script src="{% static 'js/patente.js' %}" defer></script>
 {% endblock %}

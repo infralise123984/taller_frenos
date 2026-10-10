@@ -9,7 +9,6 @@ from django.utils import timezone
 
 from apps.workshop.exceptions import (
     FichaVaciaError,
-    IngresoDuplicadoError,
     LineaFichaInvalidaError,
     PatenteInvalidaError,
     TotalFichaNegativoError,
@@ -41,7 +40,6 @@ class RegistroIngresoServiceTests(TestCase):
             "patente": "ABCD12",
             "cliente_nombre": "María Rojas",
             "cliente_telefono": "+56 9 8123 4567",
-            "kilometraje": 85_000,
             "fecha_ingreso": self.hoy,
             "lineas": (LINEA_BASE,),
         }
@@ -52,8 +50,6 @@ class RegistroIngresoServiceTests(TestCase):
     def test_crea_cliente_vehiculo_orden_y_trabajos(self) -> None:
         datos = self._datos(
             marca="Toyota",
-            modelo="Yaris",
-            anio=2018,
             lineas=(
                 LineaFicha(tipo=TipoItemFicha.PASTILLAS, precio=32_000, detalle="delantero"),
                 LineaFicha(tipo=TipoItemFicha.OBRA_MANO, precio=25_000),
@@ -65,8 +61,9 @@ class RegistroIngresoServiceTests(TestCase):
         self.assertTrue(resultado.cliente_creado)
         self.assertTrue(resultado.vehiculo_creado)
         self.assertEqual(resultado.vehiculo.patente, "ABCD12")
-        self.assertEqual(resultado.vehiculo.descripcion_corta, "Toyota Yaris 2018")
-        self.assertEqual(resultado.orden.kilometraje, 85_000)
+        self.assertEqual(resultado.vehiculo.marca, "Toyota")
+        self.assertEqual(resultado.vehiculo.descripcion_corta, "Toyota")
+        self.assertIsNone(resultado.orden.kilometraje)
         self.assertEqual(
             set(resultado.orden.items.values_list("tipo", flat=True)),
             {TipoItemFicha.PASTILLAS, TipoItemFicha.OBRA_MANO},
@@ -140,7 +137,6 @@ class RegistroIngresoServiceTests(TestCase):
                 patente="WXYZ99",
                 cliente_telefono="981234567",  # misma persona, otro formato
                 cliente_nombre="María Rojas Soto",
-                kilometraje=120_000,
             )
         )
 
@@ -151,9 +147,7 @@ class RegistroIngresoServiceTests(TestCase):
     def test_agrega_una_nueva_visita_al_vehiculo_existente(self) -> None:
         primero = self.service.registrar(self._datos())
 
-        segunda = self.service.registrar(
-            self._datos(kilometraje=95_000, fecha_ingreso=self.hoy + timedelta(days=30))
-        )
+        segunda = self.service.registrar(self._datos(fecha_ingreso=self.hoy + timedelta(days=30)))
 
         self.assertFalse(segunda.vehiculo_creado)
         self.assertEqual(segunda.vehiculo.pk, primero.vehiculo.pk)
@@ -167,21 +161,39 @@ class RegistroIngresoServiceTests(TestCase):
             self._datos(
                 cliente_telefono="+56 9 9999 8888",
                 cliente_nombre="Otro Conductor",
-                kilometraje=99_000,
             )
         )
 
         original.vehiculo.refresh_from_db()
         self.assertEqual(original.vehiculo.cliente_id, original.cliente.pk)
 
-    def test_completa_datos_del_vehiculo_sin_borrar_los_existentes(self) -> None:
-        primer_resultado = self.service.registrar(self._datos(marca="Toyota", modelo="Yaris"))
+    def test_permite_visitas_de_la_misma_patente_en_la_misma_fecha(self) -> None:
+        primera = self.service.registrar(self._datos())
 
-        self.service.registrar(self._datos(marca="", modelo="", kilometraje=90_000))
+        segunda = self.service.registrar(self._datos())
 
-        primer_resultado.vehiculo.refresh_from_db()
-        self.assertEqual(primer_resultado.vehiculo.marca, "Toyota")
-        self.assertEqual(primer_resultado.vehiculo.modelo, "Yaris")
+        self.assertEqual(segunda.vehiculo.pk, primera.vehiculo.pk)
+        self.assertEqual(segunda.vehiculo.ordenes.filter(fecha_ingreso=self.hoy).count(), 2)
+
+    def test_crea_cliente_sin_nombre_ni_telefono(self) -> None:
+        resultado = self.service.registrar(self._datos(cliente_nombre="", cliente_telefono=""))
+
+        self.assertEqual(resultado.cliente.nombre, "")
+        self.assertEqual(resultado.cliente.telefono, "")
+
+    def test_visita_sin_contacto_reutiliza_cliente_del_vehiculo(self) -> None:
+        primera = self.service.registrar(self._datos())
+
+        segunda = self.service.registrar(
+            self._datos(
+                cliente_nombre="María Rojas",
+                cliente_telefono="",
+                cliente_email="",
+            )
+        )
+
+        self.assertEqual(segunda.cliente.pk, primera.cliente.pk)
+        self.assertEqual(Cliente.objects.count(), 1)
 
     # -- Reglas de integridad ----------------------------------------------
 
@@ -191,15 +203,6 @@ class RegistroIngresoServiceTests(TestCase):
 
         self.assertFalse(Cliente.objects.exists())
         self.assertFalse(Vehiculo.objects.exists())
-
-    def test_bloquea_un_ingreso_repetido_con_la_misma_fecha_y_kilometraje(self) -> None:
-        primero = self.service.registrar(self._datos())
-
-        with self.assertRaises(IngresoDuplicadoError) as contexto:
-            self.service.registrar(self._datos())
-
-        self.assertEqual(contexto.exception.orden_id, primero.orden.pk)
-        self.assertEqual(OrdenTrabajo.objects.count(), 1)
 
     def test_registra_la_proxima_mantencion_recomendada(self) -> None:
         resultado = self.service.registrar(

@@ -10,10 +10,11 @@ Instrucciones de proyecto para la ficha del taller. Rigen cualquier cambio en
 encargada del taller y del boceto hecho en Paint. Lo que todavía no está decidido
 vive en la §14; no se inventa por cuenta propia.
 
-Contexto: hoy el sistema registra la visita con su kilometraje y una lista de
-trabajos tipificados (`TipoTrabajo`), pero **no registra montos, ni códigos de
-repuesto, ni el total**. La ficha de papel del taller (Taller V.M.D.) sí los
-tiene, y es la que se entrega al cliente. Este plan digitaliza esa ficha.
+Contexto: hoy el sistema registra la fecha de visita y una lista de trabajos
+tipificados (`TipoTrabajo`), pero **no registra montos, ni códigos de repuesto,
+ni el total**. El kilometraje actual no se solicita; se conserva opcionalmente
+en visitas históricas. La ficha de papel del taller (Taller V.M.D.) sí registra
+los montos, y es la que se entrega al cliente. Este plan digitaliza esa ficha.
 
 ---
 
@@ -182,8 +183,7 @@ class DatosTaller(models.Model):
 - `get_solo()` nunca devuelve `None`: la ficha imprimible funciona aunque nadie
   haya configurado los datos todavía (campos vacíos no se imprimen).
 - **No** se siembra la fila desde la migración: los datos reales del taller se
-  cargan desde el admin, y en los entornos de demostración los deja
-  `seed_demo` (dirección, ciudad y teléfono del papel actual).
+  cargan desde el admin.
 
 ### 4.5 Migración (solo esquema, sin datos)
 
@@ -196,8 +196,7 @@ Django sola:
 3. `AlterField` de `tipo` con el catálogo nuevo (las `choices` no son una
    restricción de base de datos, así que no mueve datos).
 
-Sin `RunPython` y sin mapeo de valores antiguos. Los datos de demostración se
-regeneran con `seed_demo`, que se actualiza al catálogo nuevo (§12).
+Sin `RunPython` y sin mapeo de valores antiguos.
 
 ---
 
@@ -281,6 +280,36 @@ una línea → completar precio / detalle / código**.
   [`templatetags/ui.py`](../../apps/workshop/templatetags/ui.py).
 - La vista sigue igual de simple: valida formset + form y delega al servicio.
 
+### 5.3 Aviso de patente ya registrada
+
+En el mesón es fácil empezar a registrar un auto que ya vino. Mientras la
+operadora escribe la patente, la pantalla consulta
+`/taller/patentes/estado/?patente=...` y, si el vehículo ya está en el sistema,
+muestra una tarjeta con el auto, el dueño, cuántas visitas tiene y qué se le hizo
+la última vez, con dos atajos: **Ver la ficha completa** y **Cargar los datos del
+dueño**.
+
+- El endpoint ([`views.patente_estado`](../../apps/workshop/views.py)) responde
+  JSON y se apoya en
+  [`selectors.vehiculo_ya_registrado`](../../apps/workshop/selectors.py), que
+  normaliza la patente y devuelve `None` mientras el dato no es confiable (vacío,
+  muy corto o inválido). La última visita se trae con su detalle para no disparar
+  una consulta por línea.
+- La tarjeta vive en
+  [`templates/workshop/partials/_aviso_patente.html`](../../templates/workshop/partials/_aviso_patente.html)
+  y [`static/js/patente.js`](../../static/js/patente.js) la **clona** y escribe
+  sobre ella con `textContent`. El JavaScript nunca arma HTML con datos del
+  cliente: un nombre con `<` o `>` se muestra como texto y no se interpreta.
+- El aviso espera 350 ms desde la última tecla, cancela la consulta anterior con
+  `AbortController` (para que una respuesta vieja no pise a la nueva) y no
+  consulta con menos de 4 caracteres.
+- Si el JavaScript no carga o el servidor no responde, la pantalla sigue
+  funcionando igual: el servidor reutiliza el vehículo y el dueño por patente y
+  teléfono al guardar.
+- El aviso **no bloquea** el guardado: es información para que ella decida.
+  Impedir el registro de un auto conocido rompería el caso legítimo, que es la
+  segunda visita.
+
 ---
 
 ## 6. Edición de una ficha guardada
@@ -290,9 +319,8 @@ una línea → completar precio / detalle / código**.
   transacción: borra las anteriores y crea las nuevas ya validadas. Nada de
   `bulk_update` con objetos parciales.
 - La pantalla de corrección edita **líneas y observaciones**, y nada más: el
-  vehículo, el dueño, la fecha y el kilometraje identifican la visita en el
-  historial del auto. Un dato mal digitado de esos se corrige registrando la
-  visita de nuevo.
+  vehículo, el dueño y la fecha identifican la visita en el historial del auto.
+  Un dato mal digitado de esos se corrige registrando la visita de nuevo.
 - Si la corrección no pasa la validación, la ficha original queda intacta: no se
   borra nada hasta que todo esté en orden.
 - Se llega desde "Corregir ficha", en cada visita del historial del vehículo.
@@ -326,7 +354,7 @@ class LineaFicha:
   servicios la comparten en vez de duplicar el armado de la línea.
 - `RegistroIngresoService` registra la visita completa y `ActualizarFichaService`
   corrige una ya guardada (reemplaza sus líneas y sus observaciones en una
-  transacción, sin tocar vehículo, dueño, fecha ni kilometraje).
+  transacción, sin tocar vehículo, dueño, fecha ni el kilometraje histórico).
 - Se mantiene la inyección actual (`items=ItemTrabajo.objects`) para poder probar
   con dobles, sin tocar la base de datos.
 
@@ -359,17 +387,15 @@ class LineaFicha:
 
 | Archivo | Qué cubre |
 | --- | --- |
-| `test_registro_ingreso.py` | Línea con precio, código y detalle se guarda tal cual; `total` suma las líneas y **resta el descuento**; permite repetir el mismo trabajo; servicio rechaza `tipo` fuera del catálogo, precio fuera de rango, ficha vacía y descuento mayor que el trabajo |
+| `test_registro_ingreso.py` | Línea con precio, código y detalle se guarda tal cual; `total` suma las líneas y **resta el descuento**; permite repetir trabajo e ingresar varias visitas el mismo día; servicio rechaza `tipo` fuera del catálogo, precio fuera de rango, ficha vacía y descuento mayor que el trabajo |
 | `test_ficha_formset.py` | Formset válido/inválido, línea repetida permitida, línea sin precio permitida, línea con precio y sin trabajo rechazada, borrar línea, ficha sin líneas rechazada, descuento mayor que el total rechazado, tope de 30 líneas, **filas de sobra en blanco ignoradas** |
-| `test_edicion_ficha.py` | Editar agrega, modifica y borra líneas; el total del servidor manda sobre un total falso enviado por POST; no se puede cambiar fecha ni kilometraje; al rechazar no se pierde la ficha original |
+| `test_edicion_ficha.py` | Editar agrega, modifica y borra líneas; el total del servidor manda sobre un total falso enviado por POST; no se puede cambiar la fecha; al rechazar no se pierde la ficha original |
 | `test_ficha_imprimible.py` | La vista responde 200, muestra patente, líneas usadas y total; **no** imprime kilometraje ni próxima mantención; usuario anónimo es redirigido al login |
 | `test_ficha_imprimible.py` (`EncabezadoDelTallerTests`) | El encabezado imprime dirección, ciudad y teléfono; sin datos configurados la ficha sale igual |
 | `test_ficha_imprimible.py` (`DatosTallerTests`) | `save()` dos veces deja una sola fila; `get_solo()` sin fila devuelve una instancia vacía |
 | `tests/helpers.py` | `payload_lineas(...)` arma los datos del formset, incluido el formulario de gestión |
 | `test_views.py` | Regresión de lo que ya funciona (§15): buscar por patente encuentra al cliente que vuelve, la ficha del vehículo muestra su historial y la ficha del cliente sus vehículos, con el ingreso nuevo registrado por formset |
-
-`seed_demo` también se actualizó al catálogo nuevo: carga precios, códigos y los
-datos del taller, para que la ficha impresa se pueda revisar con datos reales.
+| `test_aviso_patente.py` | El aviso de patente ya registrada: el selector (encuentra con separadores, no avisa con patente inválida, cuenta visitas, trae la última) y el endpoint JSON (dueño, visitas, última con su total, enlace a la ficha, patente desconocida, y que sin sesión no entregue datos del dueño) |
 
 ---
 
@@ -423,7 +449,7 @@ datos del taller, para que la ficha impresa se pueda revisar con datos reales.
 | Fase | Trabajo | Verificación |
 | --- | --- | --- |
 | 1 | Enum `TipoItemFicha` + campos de `ItemTrabajo` (migración solo de esquema, sin datos) | `python manage.py test apps.workshop.tests.test_registro_ingreso` |
-| 2 | `total` (con descuentos) + actualización de `seed_demo` | `python manage.py test apps.workshop.tests.test_registro_ingreso` |
+| 2 | `total` (con descuentos) | `python manage.py test apps.workshop.tests.test_registro_ingreso` |
 | 3 | Formset y menú desplegable en el ingreso | `python manage.py test apps.workshop.tests.test_ficha_formset` |
 | 4 | Edición de ficha guardada | `python manage.py test apps.workshop.tests.test_edicion_ficha` |
 | 5 | `DatosTaller` + admin | `python manage.py test apps.workshop.tests.test_ficha_imprimible` |
@@ -519,7 +545,7 @@ agrega dos pantallas nuevas.
 | **Ficha del cliente** con sus vehículos e historial | [`views.cliente_detail`](../../apps/workshop/views.py), `historial_de_cliente` | Sin cambios |
 | **Precarga de la patente** al registrar un auto ya conocido (`?patente=`) | [`views.ingreso_create`](../../apps/workshop/views.py) | Se mantiene igual |
 | **Reutilizar cliente y vehículo** en vez de duplicarlos (teléfono y patente normalizados) | `RegistroIngresoService._resolver_cliente` / `_resolver_vehiculo` en [`services/ingresos.py`](../../apps/workshop/services/ingresos.py) | El servicio se extiende, no se reescribe: el auto que ya vino suma una visita nueva |
-| **Aviso de ingreso repetido** (misma fecha y kilometraje) | `IngresoDuplicadoError` | Se conserva tal cual |
+| **Varias visitas en un mismo día** | No se bloquean duplicados por fecha ni por kilometraje | Se permiten porque el kilometraje actual no se solicita |
 | **Acceso**: contraseña o código por correo, todo con sesión iniciada | `apps/accounts/` + `LoginRequiredMiddleware` | Las vistas nuevas quedan cubiertas por la misma política |
 | **Formatos chilenos** (miles con punto, fechas en español) | `config/formats/es_CL/` | Precios y total usan el mismo formato |
 | **94 pruebas actuales** | `apps/workshop/tests/`, `apps/accounts/tests/` | Deben seguir verdes; solo cambian las que hoy usan `TipoTrabajo` |

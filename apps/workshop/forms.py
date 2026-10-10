@@ -82,28 +82,23 @@ class IngresoRapidoForm(forms.Form):
         ),
     )
     marca = forms.CharField(
-        label="Marca", max_length=60, required=False, widget=forms.TextInput(attrs={"class": INPUT})
-    )
-    modelo = forms.CharField(
-        label="Modelo",
+        label="Marca",
         max_length=60,
         required=False,
         widget=forms.TextInput(attrs={"class": INPUT}),
     )
-    anio = forms.IntegerField(
-        label="Año", required=False, widget=forms.NumberInput(attrs={"class": INPUT})
-    )
-    color = forms.CharField(
-        label="Color", max_length=40, required=False, widget=forms.TextInput(attrs={"class": INPUT})
-    )
 
     # -- Cliente ----------------------------------------------------------
     cliente_nombre = forms.CharField(
-        label="Nombre del cliente", max_length=150, widget=forms.TextInput(attrs={"class": INPUT})
+        label="Nombre del cliente (opcional)",
+        max_length=150,
+        required=False,
+        widget=forms.TextInput(attrs={"class": INPUT}),
     )
     cliente_telefono = forms.CharField(
-        label="Teléfono / WhatsApp",
+        label="Teléfono / WhatsApp (opcional)",
         max_length=32,
+        required=False,
         widget=forms.TextInput(
             attrs={"class": INPUT, "inputmode": "tel", "placeholder": "+56 9 1234 5678"}
         ),
@@ -117,13 +112,6 @@ class IngresoRapidoForm(forms.Form):
         label="Fecha de ingreso",
         initial=timezone.localdate,
         widget=forms.DateInput(attrs={"class": INPUT, "type": "date"}),
-    )
-    kilometraje = forms.IntegerField(
-        label="Kilometraje",
-        min_value=0,
-        widget=forms.NumberInput(
-            attrs={"class": INPUT, "inputmode": "numeric", "placeholder": "120000"}
-        ),
     )
     observaciones = forms.CharField(
         label="Observaciones",
@@ -153,16 +141,6 @@ class IngresoRapidoForm(forms.Form):
                 "Revisa la patente: debe tener entre 4 y 8 caracteres, con letras y números."
             )
         return patente
-
-    def clean_anio(self) -> int | None:
-        anio = self.cleaned_data.get("anio")
-        if anio is None:
-            return None
-        # Se admite hasta el año siguiente para no rechazar vehículos nuevos.
-        limite = timezone.localdate().year + 1
-        if not 1900 <= anio <= limite:
-            raise forms.ValidationError(f"El año debe estar entre 1900 y {limite}.")
-        return anio
 
     def clean(self):
         cleaned = super().clean()

@@ -14,11 +14,11 @@ from __future__ import annotations
 import logging
 
 from django.contrib import messages
-from django.http import HttpRequest, HttpResponse
+from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
+from django.urls import reverse
 
 from apps.workshop.exceptions import (
-    IngresoDuplicadoError,
     PatenteInvalidaError,
     WorkshopDomainError,
 )
@@ -42,6 +42,7 @@ from apps.workshop.selectors import (
     ingresos_recientes,
     orden_de_visita,
     resumen_de_vehiculo,
+    vehiculo_ya_registrado,
     vehiculos_de_cliente,
 )
 from apps.workshop.services import (
@@ -50,6 +51,7 @@ from apps.workshop.services import (
     build_actualizar_ficha_service,
     build_registro_ingreso_service,
 )
+from apps.workshop.telefonos import format_telefono
 
 logger = logging.getLogger(__name__)
 
@@ -155,6 +157,51 @@ def _render_ingreso(
     return render(request, "workshop/ingreso_form.html", contexto)
 
 
+def patente_estado(request: HttpRequest) -> JsonResponse:
+    """
+    Responde si una patente ya está registrada, mientras se escribe.
+
+    Devuelve JSON y no HTML porque lo consume el JavaScript del formulario: la
+    operadora ve el aviso sin recargar la página y sin perder lo que escribió.
+    Quien no tenga sesión iniciada no llega aquí (``LoginRequiredMiddleware``),
+    así que los datos del dueño no se filtran a un tercero.
+    """
+    registrado = vehiculo_ya_registrado(request.GET.get("patente", ""))
+    if registrado is None:
+        return JsonResponse({"registrado": False})
+
+    vehiculo = registrado.vehiculo
+    cliente = registrado.cliente
+    ultima = registrado.ultima_orden
+
+    return JsonResponse(
+        {
+            "registrado": True,
+            "patente": vehiculo.patente,
+            "descripcion": registrado.descripcion,
+            "cliente": {
+                # El teléfono viaja normalizado para rellenar el campo y legible
+                # para mostrarlo, igual que en la ficha del vehículo.
+                "nombre": cliente.nombre,
+                "telefono": cliente.telefono,
+                "telefono_legible": format_telefono(cliente.telefono),
+                "email": cliente.email,
+            },
+            "total_visitas": registrado.total_visitas,
+            "ultima_visita": (
+                {
+                    "fecha": ultima.fecha_ingreso.strftime("%d-%m-%Y"),
+                    "trabajos": ultima.resumen_trabajos,
+                    "total": ultima.total,
+                }
+                if ultima is not None
+                else None
+            ),
+            "url_ficha": reverse("workshop:vehiculo", args=[vehiculo.patente]),
+        }
+    )
+
+
 def _registrar_ingreso(
     request: HttpRequest,
     form: IngresoRapidoForm,
@@ -167,13 +214,6 @@ def _registrar_ingreso(
     except PatenteInvalidaError as exc:
         form.add_error("patente", str(exc))
         return _render_ingreso(request, form, formset)
-    except IngresoDuplicadoError:
-        messages.warning(
-            request,
-            "Este vehículo ya tiene un ingreso con la misma fecha y kilometraje. "
-            "Te mostramos el registro existente.",
-        )
-        return redirect("workshop:vehiculo", patente=form.cleaned_data["patente"])
     except WorkshopDomainError as exc:
         # El formulario ya valida estas reglas; aquí solo se evita un error 500
         # si alguna se cuela (por ejemplo, desde una petición manipulada).
@@ -211,11 +251,7 @@ def _datos_desde_formulario(
         cliente_telefono=datos["cliente_telefono"],
         cliente_email=datos["cliente_email"],
         marca=datos["marca"],
-        modelo=datos["modelo"],
-        anio=datos["anio"],
-        color=datos["color"],
         fecha_ingreso=datos["fecha_ingreso"],
-        kilometraje=datos["kilometraje"],
         observaciones=datos["observaciones"],
         proxima_mantencion_km=datos["proxima_mantencion_km"],
         proxima_mantencion_fecha=datos["proxima_mantencion_fecha"],
@@ -232,8 +268,8 @@ def ficha_editar(request: HttpRequest, pk: int) -> HttpResponse:
     """
     Corrige las líneas y las observaciones de una visita ya registrada.
 
-    No permite cambiar el vehículo, el dueño, la fecha ni el kilometraje: esos
-    datos identifican la visita en el historial del auto.
+    No permite cambiar el vehículo, el dueño ni la fecha: esos datos identifican
+    la visita en el historial del auto.
     """
     orden = get_object_or_404(orden_de_visita(pk))
 

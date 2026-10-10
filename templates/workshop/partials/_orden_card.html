@@ -8,7 +8,9 @@
 
     <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
       <p class="text-base font-semibold text-slate-900">{{ orden.fecha_ingreso|date:"d \d\e F \d\e Y" }}</p>
-      <p class="text-sm font-medium text-slate-500">{{ orden.kilometraje|intcomma }} km</p>
+      {% if orden.kilometraje != None %}
+        <p class="text-sm font-medium text-slate-500">{{ orden.kilometraje|intcomma }} km</p>
+      {% endif %}
     </div>
 
     {% if orden.items.all %}
@@ -65,4 +67,3 @@
 
   </div>
 </article>
-

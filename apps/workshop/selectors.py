@@ -14,6 +14,7 @@ from datetime import date
 from django.db.models import QuerySet
 
 from apps.workshop.models import Cliente, DatosTaller, OrdenTrabajo, Vehiculo
+from apps.workshop.patentes import is_valid_patente, normalize_patente
 
 LIMITE_BUSQUEDA = 20
 LIMITE_INGRESOS_RECIENTES = 8
@@ -52,6 +53,58 @@ def datos_del_taller() -> DatosTaller:
     instancia vacía y la ficha se imprime sin dirección ni teléfono.
     """
     return DatosTaller.get_solo()
+
+
+@dataclass(frozen=True)
+class VehiculoRegistrado:
+    """
+    Lo que hace falta saber de una patente que ya está en el sistema.
+
+    Sirve para avisar en el mesón que el auto ya vino, de quién es y cuándo fue
+    la última vez, sin obligar a la operadora a volver a la búsqueda.
+    """
+
+    vehiculo: Vehiculo
+    total_visitas: int
+    ultima_orden: OrdenTrabajo | None
+
+    @property
+    def cliente(self) -> Cliente:
+        return self.vehiculo.cliente
+
+    @property
+    def descripcion(self) -> str:
+        """Datos del auto para el aviso, con un texto de reemplazo si no hay ninguno."""
+        return self.vehiculo.descripcion_corta or "Sin datos de modelo"
+
+
+def vehiculo_ya_registrado(patente: str) -> VehiculoRegistrado | None:
+    """
+    El vehículo de esa patente, si ya está registrado.
+
+    Devuelve ``None`` cuando la patente todavía no es un dato confiable (vacía
+    o con formato inválido) y cuando el auto es nuevo: en ninguno de los dos
+    casos hay algo que avisar. La comparación usa la patente normalizada, así
+    que "bjd-f45" encuentra el mismo auto que "BJDF45".
+
+    La última visita se trae con su detalle para poder mostrar qué se le hizo
+    sin disparar una consulta por línea.
+    """
+    normalizada = normalize_patente(patente)
+    if not is_valid_patente(normalizada):
+        return None
+
+    vehiculo = Vehiculo.objects.with_cliente().filter(patente=normalizada).first()
+    if vehiculo is None:
+        return None
+
+    return VehiculoRegistrado(
+        vehiculo=vehiculo,
+        total_visitas=vehiculo.ordenes.count(),
+        ultima_orden=vehiculo.ordenes.with_detalle()
+        .order_by("-fecha_ingreso", "-created_at")
+        .first(),
+    )
 
 
 @dataclass(frozen=True)

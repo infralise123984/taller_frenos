@@ -28,11 +28,10 @@ El sistema debe permitir:
 1. **Búsqueda instantánea por patente:** Al llegar un vehículo, la operadora ingresa las letras/números de la patente y ve de inmediato la ficha del auto, a quién pertenece y todo su historial de visitas anteriores ordenado cronológicamente.
 2. **Historial de mantenciones:** Para cada visita debe quedar claro:
    * Cuándo vino.
-   * El kilometraje que marcaba el vehículo en ese momento.
    * Qué trabajo puntual se le realizó (por ejemplo: cambio de pastillas, rectificado de discos, purga o cambio de líquido de frenos, reparación de cálipers).
    * Cuándo o a qué kilometraje se le recomendó volver para su próxima mantención preventiva.
-3. **Ficha de clientes:** Saber quién es el dueño del vehículo, su número de contacto (para llamarlo o enviarle mensajes por WhatsApp cuando el auto esté listo) y si tiene más de un vehículo atendido en el taller.
-4. **Registro ágil de nuevos ingresos:** Si entra un auto nuevo que no está en el sistema, debe ser muy rápido registrar los datos básicos del cliente, del vehículo y la orden de trabajo en una sola pasada.
+3. **Ficha de clientes:** Poder registrar opcionalmente el nombre y número de contacto (para llamarlo o enviarle mensajes por WhatsApp cuando el auto esté listo) y ver si tiene más de un vehículo atendido en el taller.
+4. **Registro ágil de nuevos ingresos:** Si entra un auto nuevo que no está en el sistema, debe ser muy rápido registrar su patente, marca y orden de trabajo en una sola pasada. Nombre y teléfono del cliente son opcionales; modelo, año, color y kilometraje actual no se solicitan.
 
 ---
 

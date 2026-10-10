@@ -34,13 +34,11 @@ case "${CACHE_URL:-}" in
     ;;
 esac
 
-# Datos de ejemplo para mostrar el sistema. Está desactivado por defecto: una
-# base de datos con información real no debe recibir registros de fantasía.
-# Actívalo solo en un despliegue de demostración, definiendo SEED_DEMO=true.
-# El comando es idempotente, así que puede quedar activo entre despliegues.
-if [ "${SEED_DEMO:-false}" = "true" ]; then
-  echo "==> Cargando datos de demostración"
-  python manage.py seed_demo
+# La primera cuenta administrativa se crea solo si se entregan ambas variables.
+# El comando no modifica cuentas existentes ni crea otra si ya hay superusuario.
+if [ -n "${BOOTSTRAP_ADMIN_EMAIL:-}" ] || [ -n "${BOOTSTRAP_ADMIN_PASSWORD:-}" ]; then
+  echo "==> Preparando la cuenta administrativa inicial"
+  python manage.py bootstrap_admin
 fi
 
 echo "==> Build completado"

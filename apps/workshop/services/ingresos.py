@@ -16,7 +16,6 @@ from django.db import transaction
 
 from apps.workshop.exceptions import (
     FichaVaciaError,
-    IngresoDuplicadoError,
     LineaFichaInvalidaError,
     PatenteInvalidaError,
     TotalFichaNegativoError,
@@ -58,13 +57,10 @@ class DatosIngreso:
     patente: str
     cliente_nombre: str
     cliente_telefono: str
-    kilometraje: int
     fecha_ingreso: date
+    kilometraje: int | None = None
     cliente_email: str = ""
     marca: str = ""
-    modelo: str = ""
-    anio: int | None = None
-    color: str = ""
     observaciones: str = ""
     proxima_mantencion_km: int | None = None
     proxima_mantencion_fecha: date | None = None
@@ -165,9 +161,18 @@ class RegistroIngresoService:
 
         validar_lineas(datos.lineas)
 
-        cliente, cliente_creado = self._resolver_cliente(datos)
-        vehiculo, vehiculo_creado = self._resolver_vehiculo(patente, cliente, datos)
-        self._asegurar_no_duplicado(vehiculo, datos)
+        vehiculo_existente = self._vehiculos.filter(patente=patente).first()
+        if vehiculo_existente is not None and not datos.cliente_telefono.strip():
+            cliente, cliente_creado = vehiculo_existente.cliente, False
+        else:
+            cliente, cliente_creado = self._resolver_cliente(datos)
+
+        vehiculo, vehiculo_creado = self._resolver_vehiculo(
+            patente,
+            cliente,
+            vehiculo_existente,
+            datos,
+        )
 
         orden = self._crear_orden(vehiculo, datos)
         self._crear_lineas(orden, datos.lineas)
@@ -221,6 +226,7 @@ class RegistroIngresoService:
         self,
         patente: str,
         cliente: Cliente,
+        existente: Vehiculo | None,
         datos: DatosIngreso,
     ) -> tuple[Vehiculo, bool]:
         """
@@ -229,52 +235,21 @@ class RegistroIngresoService:
         Si ya existe se conserva su dueño actual: cambiar de propietario es una
         decisión explícita que no debe ocurrir por un registro rápido.
         """
-        existente = self._vehiculos.filter(patente=patente).first()
         if existente is not None:
-            self._completar_datos_vehiculo(existente, datos)
+            marca = datos.marca.strip()
+            if marca and existente.marca != marca:
+                existente.marca = marca
+                existente.save(update_fields=["marca", "updated_at"])
             return existente, False
 
         vehiculo = self._vehiculos.create(
             patente=patente,
             cliente=cliente,
             marca=datos.marca.strip(),
-            modelo=datos.modelo.strip(),
-            anio=datos.anio,
-            color=datos.color.strip(),
         )
         return vehiculo, True
 
-    def _completar_datos_vehiculo(self, vehiculo: Vehiculo, datos: DatosIngreso) -> None:
-        """Actualiza los datos descriptivos solo cuando llegan valores nuevos."""
-        cambios: list[str] = []
-        for campo, valor in (
-            ("marca", datos.marca.strip()),
-            ("modelo", datos.modelo.strip()),
-            ("color", datos.color.strip()),
-        ):
-            if valor and getattr(vehiculo, campo) != valor:
-                setattr(vehiculo, campo, valor)
-                cambios.append(campo)
-
-        if datos.anio and vehiculo.anio != datos.anio:
-            vehiculo.anio = datos.anio
-            cambios.append("anio")
-
-        if cambios:
-            vehiculo.save(update_fields=[*cambios, "updated_at"])
-
     # -- Persistencia de la visita ----------------------------------------
-
-    def _asegurar_no_duplicado(self, vehiculo: Vehiculo, datos: DatosIngreso) -> None:
-        duplicado = self._ordenes.filter(
-            vehiculo=vehiculo,
-            fecha_ingreso=datos.fecha_ingreso,
-            kilometraje=datos.kilometraje,
-        ).first()
-        if duplicado is not None:
-            logger.warning("Se bloqueó un ingreso duplicado para %s.", vehiculo.patente)
-            raise IngresoDuplicadoError(orden_id=duplicado.pk)
-
     def _crear_orden(self, vehiculo: Vehiculo, datos: DatosIngreso) -> OrdenTrabajo:
         return self._ordenes.create(
             vehiculo=vehiculo,
@@ -299,7 +274,7 @@ class ActualizarFichaService:
     """
     Corrige las líneas y las observaciones de una visita ya registrada.
 
-    No toca el vehículo, el dueño, la fecha ni el kilometraje: para eso está el
+    No toca el vehículo, el dueño, la fecha ni el kilometraje histórico: para eso está el
     registro de un ingreso nuevo. Las líneas se reemplazan en una transacción,
     de modo que la ficha nunca queda a medio corregir.
     """

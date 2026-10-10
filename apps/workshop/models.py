@@ -37,11 +37,12 @@ class ClienteQuerySet(models.QuerySet):
 class Cliente(models.Model):
     """Dueño de uno o más vehículos atendidos en el taller."""
 
-    nombre = models.CharField("nombre", max_length=150)
+    nombre = models.CharField("nombre", max_length=150, blank=True)
     telefono = models.CharField(
         "teléfono / WhatsApp",
         max_length=32,
-        help_text="Número al que se avisa cuando el vehículo está listo.",
+        blank=True,
+        help_text="Opcional. Número para avisar cuando el vehículo está listo.",
     )
     email = models.EmailField("correo", blank=True)
     notas = models.TextField("notas", blank=True)
@@ -60,7 +61,7 @@ class Cliente(models.Model):
         ]
 
     def __str__(self) -> str:
-        return self.nombre
+        return self.nombre or "Cliente sin nombre"
 
     # Efecto secundario explícito: el teléfono se guarda en formato canónico
     # para que la detección de clientes repetidos sea confiable.
@@ -145,11 +146,11 @@ class Vehiculo(models.Model):
 
     @property
     def descripcion_corta(self) -> str:
-        """Texto legible para listados: 'Toyota Yaris 2019' o un guion si falta todo."""
+        """Datos descriptivos conocidos del vehículo, si existen."""
         partes = [parte for parte in (self.marca, self.modelo) if parte]
         if self.anio:
             partes.append(str(self.anio))
-        return " ".join(partes) if partes else "Sin datos de modelo"
+        return " ".join(partes)
 
     @property
     def ultima_orden(self) -> OrdenTrabajo | None:
@@ -215,7 +216,7 @@ class OrdenTrabajoQuerySet(models.QuerySet):
 
 class OrdenTrabajo(models.Model):
     """
-    Una visita al taller: cuándo vino el vehículo, con qué kilometraje y qué se hizo.
+    Una visita al taller: cuándo vino el vehículo y qué se hizo.
     """
 
     vehiculo = models.ForeignKey(
@@ -227,6 +228,8 @@ class OrdenTrabajo(models.Model):
     fecha_ingreso = models.DateField("fecha de ingreso", default=timezone.localdate)
     kilometraje = models.PositiveIntegerField(
         "kilometraje",
+        null=True,
+        blank=True,
         validators=[MinValueValidator(0)],
         help_text="Kilometraje que marcaba el vehículo al ingresar.",
     )

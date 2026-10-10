@@ -53,7 +53,8 @@
                 <div class="min-w-0">
                   <p class="text-xl font-black tracking-widest text-slate-900">{{ vehiculo.patente }}</p>
                   <p class="truncate text-sm text-slate-500">
-                    {{ vehiculo.descripcion_corta }} · {{ vehiculo.cliente.nombre }}
+                    {% if vehiculo.descripcion_corta %}{{ vehiculo.descripcion_corta }} · {% endif %}
+                    {{ vehiculo.cliente.nombre|default:"Cliente sin nombre" }}
                   </p>
                 </div>
                 <span class="shrink-0 text-slate-400" aria-hidden="true">›</span>
@@ -93,7 +94,8 @@
               </div>
               <p class="mt-1 text-sm text-slate-600">{{ orden.resumen_trabajos }}</p>
               <p class="mt-1 text-xs text-slate-400">
-                {{ orden.vehiculo.cliente.nombre }} · {{ orden.kilometraje|intcomma }} km
+                {{ orden.vehiculo.cliente.nombre|default:"Cliente sin nombre" }}
+                {% if orden.kilometraje != None %} · {{ orden.kilometraje|intcomma }} km{% endif %}
               </p>
             </a>
           </li>

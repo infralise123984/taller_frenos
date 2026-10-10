@@ -15,18 +15,6 @@ class PatenteInvalidaError(WorkshopDomainError):
         self.patente = patente
 
 
-class IngresoDuplicadoError(WorkshopDomainError):
-    """
-    Ya existe una visita con la misma fecha y kilometraje para el vehículo.
-
-    Protege contra el doble envío del formulario de registro rápido.
-    """
-
-    def __init__(self, orden_id: int) -> None:
-        super().__init__("Ya existe un ingreso con la misma fecha y kilometraje.")
-        self.orden_id = orden_id
-
-
 class FichaVaciaError(WorkshopDomainError):
     """La ficha no tiene ninguna línea: no hay nada que cobrar ni que registrar."""
 

@@ -17,7 +17,7 @@ CLAVE = "clave-de-prueba-1234"
 
 
 class BaseAutenticadaTests(TestCase):
-    """Base con un usuario con sesión iniciada y datos de ejemplo."""
+    """Base con un usuario con sesión iniciada y datos de prueba."""
 
     def setUp(self) -> None:
         self.user = User.objects.create_user(email=EMAIL, password=CLAVE, full_name="Encargada")
@@ -189,14 +189,10 @@ class RegistroIngresoTests(BaseAutenticadaTests):
         datos: dict[str, object] = {
             "patente": "WXYZ99",
             "marca": "Chevrolet",
-            "modelo": "Sail",
-            "anio": 2016,
-            "color": "Gris",
             "cliente_nombre": "Pedro Muñoz",
             "cliente_telefono": "+56 9 6543 2109",
             "cliente_email": "",
             "fecha_ingreso": timezone.localdate().isoformat(),
-            "kilometraje": 132_000,
             "observaciones": "Cáliper pegado.",
             "proxima_mantencion_km": 150_000,
             "proxima_mantencion_fecha": "",
@@ -210,6 +206,14 @@ class RegistroIngresoTests(BaseAutenticadaTests):
         respuesta = self.client.get(reverse("workshop:ingreso_create"), {"patente": "abcd12"})
 
         self.assertContains(respuesta, 'value="ABCD12"')
+
+    def test_formulario_no_pide_datos_descriptivos_ni_kilometraje_actual(self) -> None:
+        respuesta = self.client.get(reverse("workshop:ingreso_create"))
+        campos = respuesta.context["form"].fields
+
+        self.assertIn("marca", campos)
+        self.assertFalse({"modelo", "anio", "color", "kilometraje"} & set(campos))
+        self.assertNotContains(respuesta, "Kilometraje")
 
     def test_la_casilla_de_borrado_queda_oculta_detras_de_un_boton(self) -> None:
         """La línea se quita con un botón, no marcando una casilla a la vista."""
@@ -227,8 +231,26 @@ class RegistroIngresoTests(BaseAutenticadaTests):
         respuesta = self.client.post(reverse("workshop:ingreso_create"), self._payload())
 
         self.assertRedirects(respuesta, reverse("workshop:vehiculo", args=["WXYZ99"]))
-        self.assertTrue(Vehiculo.objects.filter(patente="WXYZ99").exists())
+        vehiculo = Vehiculo.objects.get(patente="WXYZ99")
+        self.assertEqual(vehiculo.marca, "Chevrolet")
+        self.assertIsNone(vehiculo.anio)
+        orden = OrdenTrabajo.objects.get(vehiculo=vehiculo)
+        self.assertIsNone(orden.kilometraje)
         self.assertEqual(ItemTrabajo.objects.filter(orden__vehiculo__patente="WXYZ99").count(), 1)
+
+    def test_registra_ingreso_sin_nombre_ni_telefono(self) -> None:
+        respuesta = self.client.post(
+            reverse("workshop:ingreso_create"),
+            self._payload(cliente_nombre="", cliente_telefono=""),
+        )
+
+        self.assertRedirects(respuesta, reverse("workshop:vehiculo", args=["WXYZ99"]))
+        cliente = Cliente.objects.get(vehiculos__patente="WXYZ99")
+        self.assertEqual(cliente.nombre, "")
+        self.assertEqual(cliente.telefono, "")
+        detalle = self.client.get(reverse("workshop:vehiculo", args=["WXYZ99"]))
+        self.assertContains(detalle, "Cliente sin nombre")
+        self.assertNotContains(detalle, "wa.me/")
 
     def test_rechaza_un_ingreso_sin_ninguna_linea(self) -> None:
         respuesta = self.client.post(
@@ -275,12 +297,12 @@ class RegistroIngresoTests(BaseAutenticadaTests):
         self.assertContains(respuesta, "Revisa la patente")
         self.assertFalse(Vehiculo.objects.filter(patente="123456").exists())
 
-    def test_avisa_cuando_intenta_registrar_la_misma_visita_dos_veces(self) -> None:
+    def test_permite_varios_ingresos_para_la_misma_patente_y_fecha(self) -> None:
         self.client.post(reverse("workshop:ingreso_create"), self._payload())
         respuesta = self.client.post(reverse("workshop:ingreso_create"), self._payload())
 
         self.assertRedirects(respuesta, reverse("workshop:vehiculo", args=["WXYZ99"]))
-        self.assertEqual(OrdenTrabajo.objects.filter(vehiculo__patente="WXYZ99").count(), 1)
+        self.assertEqual(OrdenTrabajo.objects.filter(vehiculo__patente="WXYZ99").count(), 2)
 
     def test_rechaza_una_proxima_mantencion_anterior_al_ingreso(self) -> None:
         hoy = timezone.localdate()

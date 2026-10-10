@@ -1,0 +1,76 @@
+{% load ui %}
+{% comment %}
+  Aviso de "esta patente ya está registrada".
+
+  El contenedor lo rellena static/js/patente.js consultando
+  workshop:patente_estado mientras se escribe la patente. La tarjeta vive aquí,
+  en la plantilla, y el JavaScript solo escribe texto sobre ella: nunca arma
+  HTML con datos del cliente, que son texto libre digitado en el mesón.
+
+  Sin JavaScript no aparece el aviso; el registro sigue funcionando igual,
+  porque el servidor reutiliza el vehículo y el dueño por su cuenta.
+{% endcomment %}
+
+<div data-aviso-patente
+     data-url-estado="{% url 'workshop:patente_estado' %}"
+     role="status"
+     aria-live="polite"
+     hidden></div>
+
+<template id="plantilla-aviso-patente">
+  <div class="rounded-2xl border-2 border-amber-300 bg-amber-50 p-4 shadow-sm sm:p-5">
+
+    <div class="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+      <div>
+        <p class="text-xs font-semibold uppercase tracking-wide text-amber-700">
+          Esta patente ya está en el sistema
+        </p>
+        <p class="text-2xl font-black tracking-[0.2em] text-slate-900" data-campo="patente"></p>
+      </div>
+      <p class="text-sm font-medium text-slate-600" data-campo="descripcion"></p>
+    </div>
+
+    <dl class="mt-3 grid gap-x-6 gap-y-2 text-sm sm:grid-cols-2">
+      <div data-bloque="dueno">
+        <dt class="text-xs font-semibold uppercase tracking-wide text-slate-400">Dueño</dt>
+        <dd class="text-slate-800">
+          <span data-campo="dueno-nombre"></span>
+          <span data-bloque="dueno-telefono" class="text-slate-500">
+            · <span data-campo="dueno-telefono"></span>
+          </span>
+        </dd>
+      </div>
+
+      <div>
+        <dt class="text-xs font-semibold uppercase tracking-wide text-slate-400">
+          Visitas registradas
+        </dt>
+        <dd class="text-slate-800" data-campo="total-visitas"></dd>
+      </div>
+    </dl>
+
+    <p data-bloque="ultima-visita"
+       class="mt-3 rounded-xl bg-white px-4 py-3 text-sm text-slate-700">
+      <span class="font-semibold">Última visita:</span>
+      <span data-campo="ultima-fecha"></span> ·
+      <span data-campo="ultima-trabajos"></span> ·
+      <span class="font-semibold" data-campo="ultima-total"></span>
+    </p>
+
+    <div class="mt-4 flex flex-col gap-2 sm:flex-row">
+      <a data-accion="ver-ficha" href="#"
+         class="{% clase_boton_secundario %} w-full sm:w-auto">
+        Ver la ficha completa
+      </a>
+      <button type="button" data-accion="cargar-dueno"
+              class="{% clase_boton_secundario %} w-full sm:w-auto">
+        Cargar los datos del dueño
+      </button>
+    </div>
+
+    <p class="mt-3 text-xs text-slate-500">
+      Si guardas el ingreso, se agrega una visita nueva al historial de este vehículo.
+    </p>
+
+  </div>
+</template>

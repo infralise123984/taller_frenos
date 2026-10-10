@@ -5,9 +5,8 @@ desde la cual se llega al dueño y a todo su historial de mantenciones.
 
 El alcance y el contexto funcional están en `PROJECT_CONTEXT.md`.
 
-> **Estado actual:** mockup funcional. Login real (contraseña + código por
-> correo) y las cinco pantallas principales navegables con datos de ejemplo.
-> No hay funcionalidades de escritura más allá del registro de ingresos.
+> **Estado actual:** sistema operativo para registrar ingresos, consultar el
+> historial por patente, corregir fichas e imprimirlas.
 
 ---
 
@@ -22,7 +21,7 @@ pip install -r requirements/dev.txt
 
 copy .env.example .env            # y ajustar valores si hace falta
 python manage.py migrate
-python manage.py seed_demo        # imprime la contraseña generada
+python manage.py createsuperuser
 python manage.py runserver
 ```
 
@@ -35,8 +34,7 @@ código temporal de acceso aparece ahí (`EMAIL_BACKEND` = consola).
 
 | Comando | Para qué |
 | --- | --- |
-| `python manage.py test` | Ejecuta las 94 pruebas |
-| `python manage.py seed_demo --reset` | Recrea los datos de ejemplo |
+| `python manage.py test` | Ejecuta la suite de pruebas |
 | `ruff check . && ruff format .` | Análisis estático y formato |
 | `python manage.py check --deploy` | Revisa la configuración de producción |
 
@@ -165,6 +163,14 @@ grandes, textos legibles y diseño que funciona igual en teléfono, tablet y
 escritorio. Tailwind se carga por CDN en esta etapa de maqueta; antes de
 publicar conviene compilarlo localmente.
 
+En el registro de un ingreso, mientras se escribe la patente la pantalla le
+pregunta a `/taller/patentes/estado/` si ese auto ya vino. Es un endpoint JSON
+interno (exige sesión iniciada, igual que todo el taller): si el vehículo ya
+está registrado, aparece una tarjeta con el dueño, cuántas veces ha venido y qué
+se le hizo la última vez, con atajos para ver la ficha completa o cargar los
+datos del dueño. Evita volver a registrar de cero un auto conocido y duplicar su
+ficha de cliente.
+
 ---
 
 ## Decisiones de arquitectura
@@ -190,7 +196,7 @@ publicar conviene compilarlo localmente.
 - **`Cliente`** — dueño de uno o más vehículos; se identifica por teléfono
   normalizado para no duplicar fichas por diferencias de formato.
 - **`Vehiculo`** — patente única y normalizada (mayúsculas, sin separadores).
-- **`OrdenTrabajo`** — una visita: fecha, kilometraje, observaciones y la
+- **`OrdenTrabajo`** — una visita: fecha, kilometraje histórico opcional, observaciones y la
   recomendación de próxima mantención (por km, por fecha, o ambas). Su `total`
   es la suma de sus líneas.
 - **`ItemTrabajo`** — una línea de la ficha: el trabajo tipificado en
@@ -271,9 +277,8 @@ hay que declararlo.
 | `DEFAULT_FROM_EMAIL` | Un remitente real, nunca `@localhost` |
 | `DJANGO_TIME_ZONE` | `America/Santiago` |
 | `DJANGO_SETTINGS_MODULE` | `config.settings.prod` (ver abajo) |
-| `SEED_DEMO` | `true` **solo** en despliegues de demostración |
-| `DEMO_PASSWORD` | Contraseña del usuario de demostración |
-| `DEMO_EMAIL` | Correo del usuario de demostración (por defecto `taller@ejemplo.cl`) |
+| `BOOTSTRAP_ADMIN_EMAIL` | Correo de la primera cuenta administrativa |
+| `BOOTSTRAP_ADMIN_PASSWORD` | Contraseña fuerte para la primera cuenta administrativa |
 
 `DJANGO_SETTINGS_MODULE` no hace falta para servir tráfico —`config/wsgi.py` ya
 usa los ajustes de producción— pero sí para los comandos que ejecutes en la
@@ -294,45 +299,12 @@ En un plan **pago**, desde la pestaña *Shell* del servicio:
 python manage.py createsuperuser
 ```
 
-En un plan **gratuito no hay Shell**, así que esa primera cuenta la crea el
-build: usa `SEED_DEMO=true` y `DEMO_PASSWORD` (ver abajo). A partir de ahí, todas
-las cuentas siguientes se crean invitando desde la aplicación.
-
-### Mostrar el mockup con datos de ejemplo
-
-Una base recién creada está vacía, así que la pantalla de búsqueda no mostraría
-nada. Para una demostración hay dos caminos.
-
-**Automático, y la única opción en el plan gratuito.** Define `SEED_DEMO=true`
-entre las variables de entorno: cada despliegue cargará los clientes, vehículos
-y visitas de ejemplo.
-
-```ini
-SEED_DEMO=true
-DEMO_PASSWORD=<una contraseña que recuerdes>
-DEMO_EMAIL=<un correo tuyo, si vas a probar el acceso con código>
-```
-
-`DEMO_PASSWORD` conviene definirla: si se omite, se genera una al azar que
-aparece una sola vez en los registros del build.
-
-`DEMO_EMAIL` importa si vas a demostrar el acceso con código, porque el valor
-predeterminado es `taller@ejemplo.cl`, un dominio que no existe: el código nunca
-llegaría.
-
-**Manual, solo con plan pago.** Desde la pestaña *Shell*:
-
-```bash
-python manage.py seed_demo
-python manage.py seed_demo --reset   # borra los datos de ejemplo y los recrea
-```
-
-> `seed_demo` crea un **superusuario**. Úsalo solo en un despliegue de
-demostración: en un servicio con datos reales, deja `SEED_DEMO` sin definir y
-crea la cuenta con `createsuperuser`.
-
-La carga es idempotente: volver a ejecutarla no duplica registros ni pisa la
-contraseña ya creada.
+En un plan **gratuito sin Shell**, configura `BOOTSTRAP_ADMIN_EMAIL` y
+`BOOTSTRAP_ADMIN_PASSWORD` como variables secretas antes del primer despliegue.
+El build crea el primer superusuario únicamente si todavía no existe ninguno y
+valida la contraseña con las reglas de Django. No carga clientes ni visitas.
+Retira ambas variables después de crear la cuenta; el comando no cambia cuentas
+existentes ni vuelve a crear una si ya hay un superusuario.
 
 ### Dos decisiones que simplifican el despliegue
 
@@ -372,8 +344,8 @@ usar un PostgreSQL externo (Supabase, Neon) como `DATABASE_URL`.
   de gracia para pasarla a un plan pago; después Render la elimina con todos sus
   datos. Solo se admite una base gratuita por espacio de trabajo, de 1 GB y sin
   respaldos.
-- **No hay acceso a Shell**, por eso los datos de ejemplo deben cargarse con
-  `SEED_DEMO=true` durante el build.
+- **No hay acceso a Shell**, por eso configura las variables de bootstrap para
+  crear la primera cuenta administrativa durante el build.
 - No se puede enviar correo por SMTP (puertos 25, 465 y 587 bloqueados).
 - 512 MB de RAM por instancia. No definas `WEB_CONCURRENCY`; el worker único que
   gunicorn usa por defecto es lo adecuado para este tamaño.
