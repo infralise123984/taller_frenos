@@ -292,6 +292,15 @@ LineaFichaFormSet = forms.formset_factory(
     can_delete=True,
 )
 
+LineaFichaEdicionFormSet = forms.formset_factory(
+    LineaFichaForm,
+    formset=BaseLineaFichaFormSet,
+    extra=0,
+    max_num=MAX_LINEAS_FICHA,
+    validate_max=True,
+    can_delete=True,
+)
+
 
 # ---------------------------------------------------------------------------
 # Corrección de una ficha guardada

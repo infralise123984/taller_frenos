@@ -187,6 +187,13 @@ class EdicionFichaTests(TestCase):
         self.assertContains(respuesta, "Corregir ficha")
         self.assertContains(respuesta, "32.000")
 
+    def test_no_renderiza_una_fila_en_blanco_al_abrir_la_pantalla(self) -> None:
+        respuesta = self.client.get(self._url())
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertNotContains(respuesta, 'name="lineas-1-tipo"')
+        self.assertContains(respuesta, 'name="lineas-0-tipo"')
+
     def test_sin_sesion_iniciada_exige_ingresar(self) -> None:
         self.client.logout()
 

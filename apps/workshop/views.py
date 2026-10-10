@@ -27,6 +27,7 @@ from apps.workshop.forms import (
     BuscarPatenteForm,
     FichaEdicionForm,
     IngresoRapidoForm,
+    LineaFichaEdicionFormSet,
     LineaFichaFormSet,
     lineas_desde_formset,
     lineas_iniciales,
@@ -238,12 +239,15 @@ def ficha_editar(request: HttpRequest, pk: int) -> HttpResponse:
 
     if request.method == "POST":
         form = FichaEdicionForm(request.POST)
-        formset = LineaFichaFormSet(request.POST, prefix=PREFIJO_LINEAS)
+        formset = LineaFichaEdicionFormSet(request.POST, prefix=PREFIJO_LINEAS)
         if form.is_valid() and formset.is_valid():
             return _actualizar_ficha(request, orden, form, formset)
     else:
         form = FichaEdicionForm.desde_orden(orden)
-        formset = LineaFichaFormSet(initial=lineas_iniciales(orden), prefix=PREFIJO_LINEAS)
+        formset = LineaFichaEdicionFormSet(
+            initial=lineas_iniciales(orden),
+            prefix=PREFIJO_LINEAS,
+        )
 
     return _render_edicion(request, orden, form, formset)
 
