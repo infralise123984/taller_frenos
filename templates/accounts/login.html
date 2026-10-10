@@ -101,7 +101,30 @@
           {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
 
           {% include "partials/_field.html" with field=password_form.email %}
-          {% include "partials/_field.html" with field=password_form.password %}
+
+          <div class="mb-4">
+            <label for="{{ password_form.password.id_for_label }}" class="mb-1.5 block text-sm font-medium text-slate-700">
+              {{ password_form.password.label }}{% if password_form.password.field.required %}<span class="text-red-600" aria-hidden="true"> *</span>{% endif %}
+            </label>
+
+            <div class="relative">
+              {{ password_form.password }}
+              <button type="button"
+                      class="absolute inset-y-0 right-3 flex items-center text-sm font-medium text-sky-700 hover:text-sky-900"
+                      data-toggle-password="{{ password_form.password.id_for_label }}"
+                      aria-label="Mostrar contraseña">
+                Ver
+              </button>
+            </div>
+
+            {% if password_form.password.help_text %}
+              <p class="mt-1 text-xs text-slate-500">{{ password_form.password.help_text }}</p>
+            {% endif %}
+
+            {% for error in password_form.password.errors %}
+              <p class="mt-1 text-sm font-medium text-red-700">{{ error }}</p>
+            {% endfor %}
+          </div>
 
           <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl bg-sky-700 px-6 py-4 text-lg font-semibold text-white shadow-sm transition hover:bg-sky-800 focus:outline-none focus:ring-2 focus:ring-sky-300 focus:ring-offset-2">
             Entrar
@@ -118,4 +141,23 @@
   </p>
 
 </div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  document.addEventListener('DOMContentLoaded', function () {
+    document.querySelectorAll('[data-toggle-password]').forEach(function (button) {
+      button.addEventListener('click', function () {
+        const input = document.getElementById(button.dataset.togglePassword);
+        if (!input) return;
+
+        const visible = input.type === 'text';
+        input.type = visible ? 'password' : 'text';
+        button.textContent = visible ? 'Ver' : 'Ocultar';
+        button.setAttribute('aria-label', visible ? 'Mostrar contraseña' : 'Ocultar contraseña');
+        input.focus();
+      });
+    });
+  });
+</script>
 {% endblock %}

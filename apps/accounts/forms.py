@@ -35,7 +35,7 @@ class PasswordLoginForm(forms.Form):
         strip=False,
         widget=forms.PasswordInput(
             attrs={
-                "class": TEXT_INPUT_CLASSES,
+                "class": f"{TEXT_INPUT_CLASSES} pr-12",
                 "placeholder": "••••••••",
                 "autocomplete": "current-password",
             }
