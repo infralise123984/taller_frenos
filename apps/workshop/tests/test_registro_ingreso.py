@@ -7,13 +7,28 @@ from datetime import timedelta
 from django.test import TestCase
 from django.utils import timezone
 
-from apps.workshop.exceptions import IngresoDuplicadoError, PatenteInvalidaError
-from apps.workshop.models import Cliente, ItemTrabajo, OrdenTrabajo, TipoTrabajo, Vehiculo
+from apps.workshop.exceptions import (
+    FichaVaciaError,
+    IngresoDuplicadoError,
+    LineaFichaInvalidaError,
+    PatenteInvalidaError,
+    TotalFichaNegativoError,
+)
+from apps.workshop.models import (
+    TOPE_PRECIO,
+    Cliente,
+    ItemTrabajo,
+    OrdenTrabajo,
+    TipoItemFicha,
+    Vehiculo,
+)
 from apps.workshop.services import (
     DatosIngreso,
+    LineaFicha,
     RegistroIngresoService,
-    TrabajoSolicitado,
 )
+
+LINEA_BASE = LineaFicha(tipo=TipoItemFicha.OBRA_MANO, precio=10_000)
 
 
 class RegistroIngresoServiceTests(TestCase):
@@ -28,6 +43,7 @@ class RegistroIngresoServiceTests(TestCase):
             "cliente_telefono": "+56 9 8123 4567",
             "kilometraje": 85_000,
             "fecha_ingreso": self.hoy,
+            "lineas": (LINEA_BASE,),
         }
         return DatosIngreso(**{**base, **overrides})
 
@@ -38,9 +54,9 @@ class RegistroIngresoServiceTests(TestCase):
             marca="Toyota",
             modelo="Yaris",
             anio=2018,
-            trabajos=(
-                TrabajoSolicitado(tipo=TipoTrabajo.CAMBIO_PASTILLAS),
-                TrabajoSolicitado(tipo=TipoTrabajo.PURGA),
+            lineas=(
+                LineaFicha(tipo=TipoItemFicha.PASTILLAS, precio=32_000, detalle="delantero"),
+                LineaFicha(tipo=TipoItemFicha.OBRA_MANO, precio=25_000),
             ),
         )
 
@@ -53,8 +69,46 @@ class RegistroIngresoServiceTests(TestCase):
         self.assertEqual(resultado.orden.kilometraje, 85_000)
         self.assertEqual(
             set(resultado.orden.items.values_list("tipo", flat=True)),
-            {TipoTrabajo.CAMBIO_PASTILLAS, TipoTrabajo.PURGA},
+            {TipoItemFicha.PASTILLAS, TipoItemFicha.OBRA_MANO},
         )
+
+    def test_guarda_el_detalle_el_codigo_la_marca_y_el_precio_de_cada_linea(self) -> None:
+        datos = self._datos(
+            lineas=(
+                LineaFicha(
+                    tipo=TipoItemFicha.PASTILLAS,
+                    precio=32_000,
+                    detalle="trasero",
+                    codigo_repuesto=" 23479 ",
+                    marca_repuesto="Bosch",
+                ),
+            )
+        )
+
+        resultado = self.service.registrar(datos)
+
+        linea = resultado.orden.items.get()
+        self.assertEqual(linea.detalle, "trasero")
+        self.assertEqual(linea.codigo_repuesto, "23479")
+        self.assertEqual(linea.marca_repuesto, "Bosch")
+        self.assertEqual(linea.precio, 32_000)
+
+    def test_el_total_es_la_suma_de_las_lineas_menos_el_descuento(self) -> None:
+        resultado = self.service.registrar(
+            self._datos(
+                lineas=(
+                    LineaFicha(tipo=TipoItemFicha.PASTILLAS, precio=32_000),
+                    LineaFicha(tipo=TipoItemFicha.OBRA_MANO, precio=25_000),
+                    LineaFicha(
+                        tipo=TipoItemFicha.DESCUENTO,
+                        precio=-7_000,
+                        detalle="cliente frecuente",
+                    ),
+                )
+            )
+        )
+
+        self.assertEqual(resultado.orden.total, 50_000)
 
     def test_normaliza_la_patente_y_el_telefono_antes_de_guardar(self) -> None:
         resultado = self.service.registrar(self._datos(patente=" ab-cd 12 "))
@@ -62,17 +116,19 @@ class RegistroIngresoServiceTests(TestCase):
         self.assertEqual(resultado.vehiculo.patente, "ABCD12")
         self.assertEqual(resultado.cliente.telefono, "56981234567")
 
-    def test_no_crea_trabajos_duplicados_en_la_misma_visita(self) -> None:
+    def test_permite_repetir_el_mismo_trabajo_en_una_visita(self) -> None:
+        """Cambiar las pastillas delanteras y traseras son dos líneas distintas."""
         datos = self._datos(
-            trabajos=(
-                TrabajoSolicitado(tipo=TipoTrabajo.PURGA),
-                TrabajoSolicitado(tipo=TipoTrabajo.PURGA),
+            lineas=(
+                LineaFicha(tipo=TipoItemFicha.PASTILLAS, precio=32_000, detalle="delantero"),
+                LineaFicha(tipo=TipoItemFicha.PASTILLAS, precio=29_000, detalle="trasero"),
             )
         )
 
         resultado = self.service.registrar(datos)
 
-        self.assertEqual(resultado.orden.items.count(), 1)
+        self.assertEqual(resultado.orden.items.count(), 2)
+        self.assertEqual(resultado.orden.total, 61_000)
 
     # -- Reutilización de entidades ----------------------------------------
 
@@ -158,7 +214,48 @@ class RegistroIngresoServiceTests(TestCase):
 
     def test_los_items_quedan_asociados_a_la_orden_creada(self) -> None:
         resultado = self.service.registrar(
-            self._datos(trabajos=(TrabajoSolicitado(tipo=TipoTrabajo.REVISION),))
+            self._datos(lineas=(LineaFicha(tipo=TipoItemFicha.REP_BOMBA, precio=45_000),))
         )
 
         self.assertEqual(ItemTrabajo.objects.filter(orden=resultado.orden).count(), 1)
+
+    # -- Reglas de las líneas de la ficha ----------------------------------
+
+    def test_rechaza_una_ficha_sin_lineas(self) -> None:
+        with self.assertRaises(FichaVaciaError):
+            self.service.registrar(self._datos(lineas=()))
+
+        self.assertFalse(OrdenTrabajo.objects.exists())
+
+    def test_rechaza_un_trabajo_que_no_esta_en_el_catalogo(self) -> None:
+        with self.assertRaises(LineaFichaInvalidaError):
+            self.service.registrar(
+                self._datos(lineas=(LineaFicha(tipo="cambiar_el_aceite", precio=5_000),))
+            )
+
+    def test_rechaza_un_monto_negativo_fuera_de_la_linea_de_descuento(self) -> None:
+        with self.assertRaises(LineaFichaInvalidaError):
+            self.service.registrar(
+                self._datos(lineas=(LineaFicha(tipo=TipoItemFicha.PASTILLAS, precio=-1_000),))
+            )
+
+    def test_rechaza_un_precio_fuera_del_rango_permitido(self) -> None:
+        with self.assertRaises(LineaFichaInvalidaError):
+            self.service.registrar(
+                self._datos(
+                    lineas=(LineaFicha(tipo=TipoItemFicha.OBRA_MANO, precio=TOPE_PRECIO + 1),)
+                )
+            )
+
+    def test_rechaza_un_descuento_mayor_que_el_trabajo(self) -> None:
+        with self.assertRaises(TotalFichaNegativoError):
+            self.service.registrar(
+                self._datos(
+                    lineas=(
+                        LineaFicha(tipo=TipoItemFicha.OBRA_MANO, precio=10_000),
+                        LineaFicha(tipo=TipoItemFicha.DESCUENTO, precio=-15_000),
+                    )
+                )
+            )
+
+        self.assertFalse(Cliente.objects.exists())

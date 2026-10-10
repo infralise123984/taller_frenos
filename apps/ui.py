@@ -39,6 +39,12 @@ BOTON_PELIGRO = (
     "px-5 py-3 text-base font-medium text-red-700 shadow-sm transition hover:bg-red-50 "
     "focus:outline-none focus:ring-2 focus:ring-red-200"
 )
+# Acción destructiva pequeña, para repetir en cada fila de una lista.
+BOTON_QUITAR = (
+    "inline-flex items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white "
+    "px-3 py-2 text-sm font-medium text-red-700 transition hover:border-red-300 hover:bg-red-50 "
+    "focus:outline-none focus:ring-2 focus:ring-red-200"
+)
 
 # Tarjetas
 TARJETA = "rounded-2xl border border-slate-200 bg-white shadow-sm"

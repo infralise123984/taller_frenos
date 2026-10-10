@@ -9,7 +9,8 @@ from django.urls import reverse
 from django.utils import timezone
 
 from apps.accounts.models import User
-from apps.workshop.models import Cliente, ItemTrabajo, OrdenTrabajo, TipoTrabajo, Vehiculo
+from apps.workshop.models import Cliente, ItemTrabajo, OrdenTrabajo, TipoItemFicha, Vehiculo
+from apps.workshop.tests.helpers import payload_lineas
 
 EMAIL = "recepcion@taller.cl"
 CLAVE = "clave-de-prueba-1234"
@@ -81,12 +82,12 @@ class BuscarTests(BaseAutenticadaTests):
 class FichaVehiculoTests(BaseAutenticadaTests):
     def test_muestra_el_historial_y_la_proxima_mantencion(self) -> None:
         orden = self.crear_orden(proxima_mantencion_km=90_000)
-        ItemTrabajo.objects.create(orden=orden, tipo=TipoTrabajo.CAMBIO_PASTILLAS)
+        ItemTrabajo.objects.create(orden=orden, tipo=TipoItemFicha.PASTILLAS, precio=32_000)
 
         respuesta = self.client.get(reverse("workshop:vehiculo", args=["BJDF45"]))
 
         self.assertEqual(respuesta.status_code, 200)
-        self.assertContains(respuesta, "Cambio de pastillas")
+        self.assertContains(respuesta, "Pastillas")
         self.assertContains(respuesta, "María Rojas")
         # El resumen se calcula a partir de la última visita, no de todo el historial.
         self.assertEqual(respuesta.context["resumen"].proxima_mantencion_km, 90_000)
@@ -141,6 +142,48 @@ class FichaClienteTests(BaseAutenticadaTests):
         self.assertContains(respuesta, "+56 9 8123 4567")
 
 
+class FugasDePlantillaTests(BaseAutenticadaTests):
+    """
+    Ninguna página debe mostrar marcadores de plantilla como texto.
+
+    Django solo reconoce ``{# ... #}`` cuando el comentario abre y cierra en la
+    misma línea; un ``{#`` suelto se imprime tal cual y aparece en pantalla. Lo
+    mismo vale para ``{%`` y ``{{``. Estas pruebas recorren las pantallas del
+    taller para que el error se vea antes de llegar al mesón.
+    """
+
+    def _marcadores(self, html: str) -> list[str]:
+        return [marcador for marcador in ("{#", "{%", "{{") if marcador in html]
+
+    def _paginas(self) -> dict[str, str]:
+        orden = self.crear_orden()
+        return {
+            "buscar": reverse("workshop:buscar"),
+            "ingreso": reverse("workshop:ingreso_create"),
+            "vehiculo": reverse("workshop:vehiculo", args=[self.vehiculo.patente]),
+            "cliente": reverse("workshop:cliente", args=[self.cliente.pk]),
+            "editar": reverse("workshop:ficha_editar", args=[orden.pk]),
+            "imprimir": reverse("workshop:ficha_imprimir", args=[orden.pk]),
+        }
+
+    def test_las_pantallas_no_muestran_marcadores_de_plantilla(self) -> None:
+        for nombre, ruta in self._paginas().items():
+            with self.subTest(pantalla=nombre):
+                respuesta = self.client.get(ruta)
+
+                self.assertEqual(respuesta.status_code, 200)
+                self.assertEqual(self._marcadores(respuesta.content.decode()), [])
+
+    def test_el_formulario_con_errores_tampoco_los_muestra(self) -> None:
+        respuesta = self.client.post(
+            reverse("workshop:ingreso_create"),
+            {"patente": "123456"},
+        )
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertEqual(self._marcadores(respuesta.content.decode()), [])
+
+
 class RegistroIngresoTests(BaseAutenticadaTests):
     def _payload(self, **overrides) -> dict[str, object]:
         datos: dict[str, object] = {
@@ -154,10 +197,12 @@ class RegistroIngresoTests(BaseAutenticadaTests):
             "cliente_email": "",
             "fecha_ingreso": timezone.localdate().isoformat(),
             "kilometraje": 132_000,
-            "trabajos": [TipoTrabajo.REPARACION_CALIPERS],
             "observaciones": "Cáliper pegado.",
             "proxima_mantencion_km": 150_000,
             "proxima_mantencion_fecha": "",
+            **payload_lineas(
+                {"tipo": TipoItemFicha.REP_CALIPER, "precio": 68_000, "detalle": "delantero"},
+            ),
         }
         return {**datos, **overrides}
 
@@ -166,11 +211,47 @@ class RegistroIngresoTests(BaseAutenticadaTests):
 
         self.assertContains(respuesta, 'value="ABCD12"')
 
+    def test_la_casilla_de_borrado_queda_oculta_detras_de_un_boton(self) -> None:
+        """La línea se quita con un botón, no marcando una casilla a la vista."""
+        respuesta = self.client.get(reverse("workshop:ingreso_create"))
+
+        html = respuesta.content.decode()
+        self.assertIn("data-quitar-linea", html)
+        self.assertIn("campo-borrar", html)
+        # La casilla viaja igual en el formulario (es el contrato con Django),
+        # pero fuera de la vista y sin recibir el foco.
+        self.assertIn("-DELETE", html)
+        self.assertIn('tabindex="-1"', html)
+
     def test_registra_el_ingreso_y_redirige_a_la_ficha(self) -> None:
         respuesta = self.client.post(reverse("workshop:ingreso_create"), self._payload())
 
         self.assertRedirects(respuesta, reverse("workshop:vehiculo", args=["WXYZ99"]))
         self.assertTrue(Vehiculo.objects.filter(patente="WXYZ99").exists())
+        self.assertEqual(ItemTrabajo.objects.filter(orden__vehiculo__patente="WXYZ99").count(), 1)
+
+    def test_rechaza_un_ingreso_sin_ninguna_linea(self) -> None:
+        respuesta = self.client.post(
+            reverse("workshop:ingreso_create"),
+            self._payload(**payload_lineas()),
+        )
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, "Agrega al menos una línea")
+        self.assertFalse(Vehiculo.objects.filter(patente="WXYZ99").exists())
+
+    def test_registra_el_ingreso_aunque_sobre_una_fila_en_blanco(self) -> None:
+        respuesta = self.client.post(
+            reverse("workshop:ingreso_create"),
+            self._payload(
+                **payload_lineas(
+                    {"tipo": TipoItemFicha.PASTILLAS, "precio": 32_000},
+                    blancas=1,
+                )
+            ),
+        )
+
+        self.assertRedirects(respuesta, reverse("workshop:vehiculo", args=["WXYZ99"]))
         self.assertEqual(ItemTrabajo.objects.filter(orden__vehiculo__patente="WXYZ99").count(), 1)
 
     def test_reutiliza_el_cliente_si_el_telefono_ya_existe(self) -> None:

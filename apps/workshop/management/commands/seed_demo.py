@@ -23,7 +23,14 @@ from django.db import transaction
 from django.utils import timezone
 
 from apps.accounts.models import User
-from apps.workshop.models import Cliente, ItemTrabajo, OrdenTrabajo, TipoTrabajo, Vehiculo
+from apps.workshop.models import (
+    Cliente,
+    DatosTaller,
+    ItemTrabajo,
+    OrdenTrabajo,
+    TipoItemFicha,
+    Vehiculo,
+)
 from apps.workshop.telefonos import normalize_telefono
 
 CLIENTES_DEMO = [
@@ -64,13 +71,18 @@ CLIENTES_DEMO = [
     },
 ]
 
-# (patente, días atrás, kilometraje, tipos, observaciones, próxima km, próxima días)
+# (patente, días atrás, kilometraje, líneas, observaciones, próxima km, próxima días)
+# Cada línea es (tipo, precio, detalle, código del repuesto, marca del repuesto).
 VISITAS_DEMO = [
     (
         "BJDF45",
         240,
         78_400,
-        [TipoTrabajo.CAMBIO_PASTILLAS, TipoTrabajo.RECTIFICADO_DISCOS],
+        [
+            (TipoItemFicha.PASTILLAS, 32_000, "delantero", "23479", "Bosch"),
+            (TipoItemFicha.RECT_DISCO, 45_000, "delantero", "", ""),
+            (TipoItemFicha.OBRA_MANO, 25_000, "", "", ""),
+        ],
         "Pastillas delanteras y rectificado de discos. Cliente reporta chirrido al frenar.",
         90_000,
         120,
@@ -79,7 +91,11 @@ VISITAS_DEMO = [
         "BJDF45",
         60,
         88_900,
-        [TipoTrabajo.REVISION, TipoTrabajo.PURGA],
+        [
+            (TipoItemFicha.LIQUIDO, 8_500, "", "DOT4-500", "Mobil"),
+            (TipoItemFicha.OBRA_MANO, 12_000, "purga del circuito", "", ""),
+            (TipoItemFicha.DESCUENTO, -3_000, "cliente frecuente", "", ""),
+        ],
         "Revisión general preventiva. Se purgó el circuito y se completó líquido.",
         None,
         None,
@@ -88,7 +104,10 @@ VISITAS_DEMO = [
         "KLMN91",
         150,
         41_200,
-        [TipoTrabajo.CAMBIO_LIQUIDO],
+        [
+            (TipoItemFicha.LIQUIDO, 9_000, "", "", ""),
+            (TipoItemFicha.OBRA_MANO, 10_000, "", "", ""),
+        ],
         "Cambio de líquido de frenos según pauta del fabricante.",
         60_000,
         210,
@@ -97,12 +116,23 @@ VISITAS_DEMO = [
         "RTWX22",
         30,
         132_000,
-        [TipoTrabajo.REPARACION_CALIPERS, TipoTrabajo.CAMBIO_PASTILLAS],
+        [
+            (TipoItemFicha.REP_CALIPER, 68_000, "delantero izquierdo", "CAL-118", "ATE"),
+            (TipoItemFicha.PASTILLAS, 29_000, "delantero", "23479", "Bosch"),
+            (TipoItemFicha.OBRA_MANO, 30_000, "", "", ""),
+        ],
         "Cáliper delantero izquierdo pegado; se reparó y se cambió el juego de pastillas.",
         150_000,
         90,
     ),
 ]
+
+# Datos que salen impresos en la ficha de papel del taller.
+TALLER_DEMO = {
+    "direccion": "Alameda N° 0779 al llegar a Av. Victoria",
+    "ciudad": "Rancagua",
+    "telefono": "225 384 512",
+}
 
 
 class Command(BaseCommand):
@@ -131,8 +161,18 @@ class Command(BaseCommand):
             self._reset()
         self._crear_usuario(options["email"], options["password"])
         self._crear_datos_taller()
+        self._crear_datos_impresos()
 
         self.stdout.write(self.style.SUCCESS("Datos de demostración listos."))
+
+    # -- Datos del taller impresos en la ficha -----------------------------
+
+    def _crear_datos_impresos(self) -> None:
+        if DatosTaller.objects.exists():
+            return
+
+        DatosTaller.objects.create(**TALLER_DEMO)
+        self.stdout.write("Datos del taller cargados para la ficha impresa.")
 
     # -- Usuario -----------------------------------------------------------
 
@@ -186,7 +226,7 @@ class Command(BaseCommand):
     def _crear_visitas(self) -> None:
         hoy = timezone.localdate()
 
-        for patente, dias_atras, km, tipos, observaciones, prox_km, prox_dias in VISITAS_DEMO:
+        for patente, dias_atras, km, lineas, observaciones, prox_km, prox_dias in VISITAS_DEMO:
             vehiculo = Vehiculo.objects.get(patente=patente)
             fecha = hoy - timedelta(days=dias_atras)
 
@@ -205,7 +245,19 @@ class Command(BaseCommand):
             if not creada:
                 continue
 
-            ItemTrabajo.objects.bulk_create([ItemTrabajo(orden=orden, tipo=tipo) for tipo in tipos])
+            ItemTrabajo.objects.bulk_create(
+                [
+                    ItemTrabajo(
+                        orden=orden,
+                        tipo=tipo,
+                        precio=precio,
+                        detalle=detalle,
+                        codigo_repuesto=codigo,
+                        marca_repuesto=marca,
+                    )
+                    for tipo, precio, detalle, codigo, marca in lineas
+                ]
+            )
 
     def _reset(self) -> None:
         """Elimina solo los datos de demostración, respetando el orden de dependencias."""

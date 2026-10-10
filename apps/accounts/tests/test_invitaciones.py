@@ -325,6 +325,14 @@ class InvitacionesVistasTests(TestCase):
         self.assertEqual(respuesta.status_code, 410)
         self.assertContains(respuesta, "ya no sirve", status_code=410)
 
+    def test_la_pantalla_de_enlace_vencido_no_muestra_marcadores_de_plantilla(self) -> None:
+        """Un ``{#`` sin cerrar en la misma línea se imprime como texto."""
+        ruta = reverse("accounts:invitacion_aceptar", args=["token-inventado"])
+
+        html = self.client.get(ruta).content.decode()
+
+        self.assertEqual([m for m in ("{#", "{%", "{{") if m in html], [])
+
     def test_un_enlace_ya_usado_no_permite_crear_otra_cuenta(self) -> None:
         ruta = self._crear_invitacion()
         self.client.post(ruta, {"new_password1": NUEVA_CLAVE, "new_password2": NUEVA_CLAVE})

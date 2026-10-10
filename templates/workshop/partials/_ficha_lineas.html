@@ -1,0 +1,80 @@
+{% load humanize ui %}
+{% comment %}
+  Bloque completo de la ficha de trabajo: líneas, total y observaciones.
+
+  Recibe:
+    formset   — el formset de líneas
+    form      — el formulario de la visita (de él se toman las observaciones)
+    catalogo  — las opciones del catálogo (TipoItemFicha.choices)
+    total     — total ya guardado, como respaldo sin JavaScript
+
+  Cada línea se elige del menú desplegable y se agrega con el botón: no se
+  muestran de una vez todas las opciones, porque la ficha de papel se llena
+  trabajo por trabajo.
+{% endcomment %}
+<section class="mb-5 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+
+  <h2 class="mb-1 text-sm font-semibold uppercase tracking-wide text-slate-500">
+    Trabajos y precios
+  </h2>
+  <p class="mb-4 text-xs text-slate-400">
+    Elige cada trabajo de la lista y agrega una línea por trabajo. El total se calcula solo.
+    Un descuento se escribe con el monto en negativo.
+  </p>
+
+  {{ formset.management_form }}
+
+  {% if formset.non_form_errors %}
+    <div class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-900">
+      {% for error in formset.non_form_errors %}<p>{{ error }}</p>{% endfor %}
+    </div>
+  {% endif %}
+
+  <div class="space-y-3" data-lineas>
+    {% for linea in formset %}
+      {% include "workshop/partials/_linea_ficha.html" with linea=linea %}
+    {% endfor %}
+  </div>
+
+  <p class="mt-3 hidden text-sm text-slate-500" data-aviso-quitadas>
+    Se quitó una línea.
+    <button type="button" data-deshacer-quitar
+            class="font-semibold text-sky-700 underline hover:text-sky-900">
+      Deshacer
+    </button>
+  </p>
+
+  {# Fila en blanco que el navegador clona al agregar una línea. #}
+  <template id="plantilla-linea">
+    {% include "workshop/partials/_linea_ficha.html" with linea=formset.empty_form %}
+  </template>
+
+  <div class="mt-4 flex flex-col gap-3 rounded-xl bg-slate-50 p-3 sm:flex-row sm:items-end">
+
+    <div class="flex-1">
+      <label for="selector-trabajo" class="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+        Agregar trabajo
+      </label>
+      <select id="selector-trabajo" data-selector-trabajo class="{% clase_select %}">
+        <option value="">Elige un trabajo…</option>
+        {% for valor, etiqueta in catalogo %}
+          <option value="{{ valor }}">{{ etiqueta }}</option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <button type="button" data-agregar-linea class="{% clase_boton_secundario %}">
+      + Agregar línea
+    </button>
+
+  </div>
+  <div class="mt-5 flex items-baseline justify-between border-t-2 border-slate-900 pt-4">
+    <span class="text-sm font-semibold uppercase tracking-wide text-slate-500">Total</span>
+    <span class="text-3xl font-black text-slate-900">
+      $&nbsp;<span data-total-ficha>{{ total|default:0|intcomma }}</span>
+    </span>
+  </div>
+
+  {% include "partials/_field.html" with field=form.observaciones %}
+
+</section>

@@ -1,11 +1,13 @@
 name: CI
 
-# Se ejecuta en cada push a main y en cada pull request que apunte a main.
+# Se ejecuta en cada push a main o desarrollo, y en cada pull request que
+# apunte a cualquiera de las dos. Así el trabajo en curso se valida en la rama
+# antes de integrarse, y no recién cuando ya llegó a main.
 on:
   push:
-    branches: [main]
+    branches: [main, desarrollo]
   pull_request:
-    branches: [main]
+    branches: [main, desarrollo]
 
 # Si llega un push nuevo mientras la ejecución anterior sigue en curso, la
 # cancela: no tiene sentido validar una revisión ya obsoleta.

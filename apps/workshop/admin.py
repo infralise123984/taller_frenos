@@ -2,7 +2,7 @@
 
 from django.contrib import admin
 
-from apps.workshop.models import Cliente, ItemTrabajo, OrdenTrabajo, Vehiculo
+from apps.workshop.models import Cliente, DatosTaller, ItemTrabajo, OrdenTrabajo, Vehiculo
 
 
 class VehiculoInline(admin.TabularInline):
@@ -30,11 +30,12 @@ class VehiculoAdmin(admin.ModelAdmin):
 class ItemTrabajoInline(admin.TabularInline):
     model = ItemTrabajo
     extra = 1
+    fields = ("tipo", "detalle", "codigo_repuesto", "marca_repuesto", "precio")
 
 
 @admin.register(OrdenTrabajo)
 class OrdenTrabajoAdmin(admin.ModelAdmin):
-    list_display = ("vehiculo", "fecha_ingreso", "kilometraje", "resumen_trabajos")
+    list_display = ("vehiculo", "fecha_ingreso", "kilometraje", "total", "resumen_trabajos")
     list_select_related = ("vehiculo",)
     list_filter = ("fecha_ingreso",)
     date_hierarchy = "fecha_ingreso"
@@ -50,7 +51,25 @@ class OrdenTrabajoAdmin(admin.ModelAdmin):
 
 @admin.register(ItemTrabajo)
 class ItemTrabajoAdmin(admin.ModelAdmin):
-    list_display = ("tipo", "orden", "repuesto", "descripcion")
+    list_display = ("tipo", "orden", "detalle", "codigo_repuesto", "marca_repuesto", "precio")
     list_select_related = ("orden",)
     list_filter = ("tipo",)
-    search_fields = ("orden__vehiculo__patente", "descripcion", "repuesto")
+    search_fields = ("orden__vehiculo__patente", "detalle", "codigo_repuesto", "marca_repuesto")
+
+
+@admin.register(DatosTaller)
+class DatosTallerAdmin(admin.ModelAdmin):
+    """
+    Datos del taller: fila única.
+
+    Se bloquea crear una segunda fila y borrar la existente, para que la ficha
+    impresa nunca quede sin encabezado por un descuido del panel.
+    """
+
+    fields = ("direccion", "ciudad", "telefono")
+
+    def has_add_permission(self, request) -> bool:
+        return not DatosTaller.objects.exists()
+
+    def has_delete_permission(self, request, obj=None) -> bool:
+        return False

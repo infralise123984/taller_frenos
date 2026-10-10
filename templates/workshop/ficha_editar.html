@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% load static ui %}
+
+{% block title %}Corregir ficha · {{ orden.vehiculo.patente }}{% endblock %}
+
+{% block content %}
+
+  <a href="{% url 'workshop:vehiculo' orden.vehiculo.patente %}"
+     class="mb-4 inline-block text-sm font-medium text-sky-700 hover:underline">
+    ← Volver a la ficha del vehículo
+  </a>
+
+  <h1 class="mb-1 text-2xl font-bold text-slate-900">Corregir ficha</h1>
+  <p class="mb-6 text-sm text-slate-500">
+    {{ orden.vehiculo.patente }} · {{ orden.vehiculo.descripcion_corta }} ·
+    visita del {{ orden.fecha_ingreso|date:"d-m-Y" }}
+  </p>
+
+  <form method="post" novalidate>
+    {% csrf_token %}
+
+    {% if form.non_field_errors %}
+      <div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-900">
+        {{ form.non_field_errors }}
+      </div>
+    {% endif %}
+
+    {% include "workshop/partials/_ficha_lineas.html" with formset=formset form=form catalogo=catalogo total=orden.total %}
+
+    <div class="flex flex-col gap-3 sm:flex-row-reverse">
+      <button type="submit" class="{% clase_boton_primario %} sm:w-auto sm:px-8">
+        Guardar cambios
+      </button>
+      <a href="{% url 'workshop:vehiculo' orden.vehiculo.patente %}"
+         class="{% clase_boton_secundario %} w-full sm:w-auto">
+        Cancelar
+      </a>
+    </div>
+
+  </form>
+
+{% endblock %}
+
+{% block scripts %}
+  <script src="{% static 'js/ficha.js' %}" defer></script>
+{% endblock %}
