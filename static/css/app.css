@@ -10,7 +10,7 @@
 
 /* La casilla de borrado de una línea trabaja por detrás del botón "Quitar
    línea": se oculta aquí y no depende de Tailwind para no dejar un cuadrito
-   suelto si la CDN no carga. */
+   suelto si el CSS compilado no carga. */
 .campo-borrar {
   display: none;
 }
@@ -55,8 +55,9 @@
     background: #fff;
   }
 
-  /* Tailwind llega por CDN y se inyecta después de esta hoja, así que estas
-     reglas necesitan !important para ganar en la impresión. */
+  /* Las utilidades de Tailwind son clases y ganan por especificidad al selector
+     de elemento, así que estas reglas necesitan !important para imponerse al
+     papel. */
   .ficha-impresa {
     max-width: none !important;
     margin: 0 !important;

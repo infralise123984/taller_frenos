@@ -3,6 +3,9 @@
 venv/
 env/
 
+# Dependencias de Node (Tailwind). Se reinstalan con `npm ci`.
+node_modules/
+
 # Configuración local con secretos
 .env
 .env.*

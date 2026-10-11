@@ -12,12 +12,14 @@ El alcance y el contexto funcional están en `PROJECT_CONTEXT.md`.
 
 ## Puesta en marcha
 
-Requiere Python 3.13.
+Requiere Python 3.13 y Node.js (solo para compilar Tailwind).
 
 ```bash
 python -m venv .venv
 .venv\Scripts\activate            # Windows
 pip install -r requirements/dev.txt
+
+npm ci                            # dependencias de Tailwind
 
 copy .env.example .env            # y ajustar valores si hace falta
 python manage.py migrate
@@ -43,6 +45,8 @@ datos del taller en caché.
 | --- | --- |
 | `python manage.py test` | Ejecuta la suite de pruebas |
 | `ruff check . && ruff format .` | Análisis estático y formato |
+| `npm run build:css` | Recompila el CSS de Tailwind (obligatorio tras cambiar clases) |
+| `npm run watch:css` | Recompila el CSS mientras se edita |
 | `python manage.py check --deploy` | Revisa la configuración de producción |
 
 ---
@@ -136,8 +140,8 @@ persona puede volver a configurarlo después.
 
 La interfaz está pensada para usarse de pie en el mesón: campos y botones
 grandes, textos legibles y diseño que funciona igual en teléfono, tablet y
-escritorio. Tailwind se carga por CDN en esta etapa de maqueta; antes de
-publicar conviene compilarlo localmente.
+escritorio. Tailwind se compila a `static/css/tailwind.css` (ver
+[Hoja de estilos](#hoja-de-estilos)); la página no carga nada desde CDNs.
 
 En el registro de un ingreso, mientras se escribe la patente la pantalla le
 pregunta a `/taller/patentes/estado/` si ese auto ya vino. Es un endpoint JSON
@@ -203,9 +207,45 @@ como instrucciones de proyecto en
 - Cero secretos en el repositorio: todo llega por variables de entorno.
 
 En producción `ALLOWED_HOSTS` no tiene valores por defecto: hay que declararla, o
-dejar que se detecte dentro de Render. Queda pendiente **compilar Tailwind
-localmente** en vez de usar la CDN, para que el sistema funcione sin internet y
-permita definir una **CSP** estricta.
+dejar que se detecte dentro de Render. Queda pendiente definir una **CSP**
+estricta.
+
+---
+
+## Hoja de estilos
+
+Tailwind se compila en un archivo propio y se sirve desde el dominio del taller,
+así que la interfaz ya no depende de un CDN ni de tener internet.
+
+| Archivo | Papel |
+| --- | --- |
+| `assets/css/tailwind.src.css` | Entrada que lee Tailwind. No se sirve. |
+| `static/css/tailwind.css` | Resultado compilado y minificado. Versionado. Lo carga la página. |
+| `static/css/app.css` | Reglas propias del sistema. Se carga después, para poder sobrescribir. |
+| `tailwind.config.js` | Declara dónde buscar clases. |
+
+`tailwind.config.js` busca clases en las plantillas, en el JavaScript **y en los
+módulos de Python**, porque la "voz visual" del sistema vive en `apps/ui.py` y en
+los `simple_tag` de `apps/workshop/templatetags/ui.py`. Si un archivo con clases
+queda fuera de esa lista, sus estilos no se generan y la interfaz cambia sin que
+nada avise.
+
+**Tras cambiar clases hay que recompilar** (`npm run build:css`) y versionar el
+resultado, porque las pruebas y el despliegue no ejecutan Node. Para que ese
+paso no se olvide, el CI recompila el CSS y falla si el archivo versionado no
+coincide con su fuente.
+
+En Render el build recompila el CSS por su cuenta (`build.sh`), de modo que lo
+publicado siempre corresponde al código desplegado.
+
+Tailwind está fijado en 3.x, y no en 4.x, a propósito: la versión 4 renombra
+clases que el sistema ya usa (`shadow-sm`, `outline-none`) y cambia el ancho por
+defecto de `ring`, así que migrar exige revisar pantalla por pantalla. Mientras
+tanto, `npm audit` informa avisos en dependencias internas de compilación
+(`braces`, `postcss-selector-parser`); se aceptan porque solo procesan los
+archivos del propio repositorio durante el build, nunca datos de terceros, y
+porque la única corrección que ofrece npm es saltar a Tailwind 4. Conviene
+revisarlo al migrar de versión.
 
 ---
 

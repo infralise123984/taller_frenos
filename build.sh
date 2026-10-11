@@ -19,6 +19,19 @@ echo "==> Instalando dependencias de producción"
 python -m pip install --upgrade pip
 python -m pip install -r requirements/prod.txt
 
+# Tailwind se compila aquí y no en el editor, para que el CSS publicado siempre
+# corresponda a las clases que usan las plantillas y los módulos de Python. El
+# CSS compilado también está versionado, así que si npm no estuviera disponible
+# se publica esa versión; el CI ya verificó que esté al día (ver ci.yml).
+echo "==> Compilando la hoja de estilos"
+if command -v npm >/dev/null 2>&1; then
+  npm ci
+  npm run build:css
+else
+  echo "    AVISO: npm no está disponible en este entorno."
+  echo "    Se publica static/css/tailwind.css tal como está en el repositorio."
+fi
+
 echo "==> Recolectando archivos estáticos"
 python manage.py collectstatic --no-input
 

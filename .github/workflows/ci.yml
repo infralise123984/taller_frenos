@@ -31,14 +31,31 @@ jobs:
           cache: pip
           cache-dependency-path: requirements/*.txt
 
+      - name: Preparar Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
       - name: Instalar dependencias
         run: pip install -r requirements/dev.txt
+
+      - name: Instalar dependencias de Tailwind
+        run: npm ci
 
       - name: Análisis estático
         run: ruff check .
 
       - name: Verificar formato
         run: ruff format --check .
+
+      # El CSS compilado se versiona porque ni las pruebas ni el despliegue
+      # ejecutan Node. Esta comprobación evita que quede desactualizado respecto
+      # de las clases que usan las plantillas y los módulos de Python.
+      - name: Verificar que el CSS de Tailwind esté al día
+        run: |
+          npm run build:css
+          git diff --exit-code -- static/css/tailwind.css
 
       # No se necesita archivo .env: config/settings/dev.py trae valores por
       # defecto para desarrollo y las pruebas no tocan servicios externos.

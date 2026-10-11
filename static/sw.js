@@ -1,4 +1,4 @@
-const CACHE_NAME = "taller-frenos-static-v1";
+const CACHE_NAME = "taller-frenos-static-v2";
 const STATIC_PATHS = ["/static/css/", "/static/js/", "/static/icons/"];
 
 self.addEventListener("install", function (event) {

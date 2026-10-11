@@ -1,0 +1,15 @@
+/*
+  Punto de entrada de Tailwind.
+
+  Este archivo no se sirve ni se recolecta: vive fuera de `static/` a propósito,
+  porque es una entrada de compilación y no un recurso del sitio. Tailwind lo
+  compila hacia `static/css/tailwind.css`, que sí se versiona y es el que carga
+  la página. Para recompilar: `npm run build:css`.
+
+  Los ajustes propios del sistema no van aquí, sino en `static/css/app.css`,
+  que se carga después y por eso puede sobrescribir a Tailwind.
+*/
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

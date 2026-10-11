@@ -16,8 +16,15 @@ class PwaTests(TestCase):
 
         self.assertContains(response, 'rel="manifest"')
         self.assertContains(response, 'name="theme-color"')
+        self.assertContains(response, 'rel="icon"')
         self.assertContains(response, 'rel="apple-touch-icon"')
         self.assertContains(response, 'src="/static/js/pwa.js"')
+
+    def test_favicon_is_a_valid_multiresolution_ico(self) -> None:
+        favicon = settings.BASE_DIR / "static" / "favicon.ico"
+
+        with favicon.open("rb") as icon:
+            self.assertEqual(icon.read(4), b"\x00\x00\x01\x00")
 
     def test_manifest_is_valid_and_scoped_to_the_application(self) -> None:
         manifest_path = settings.BASE_DIR / "static" / "manifest.webmanifest"

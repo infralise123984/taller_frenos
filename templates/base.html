@@ -8,15 +8,17 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="icon" href="{% static 'favicon.ico' %}" sizes="any">
   <link rel="manifest" href="{% static 'manifest.webmanifest' %}">
   <link rel="apple-touch-icon" href="{% static 'icons/icon-192.png' %}">
   <title>{% block title %}Taller de Frenos{% endblock %}</title>
 
   {% comment %}
-    Tailwind vía CDN: acelera la maquetación del mockup, pero requiere conexión
-    a internet y obliga a relajar la CSP. Antes de publicar se compila local.
+    Tailwind se compila al construir el proyecto (npm run build:css) y se sirve
+    desde el propio dominio. Antes se cargaba desde un CDN, lo que ataba la
+    página a internet; queda pendiente definir una CSP estricta.
   {% endcomment %}
-  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="{% static 'css/tailwind.css' %}">
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
 </head>
 <body class="min-h-screen bg-slate-100 text-slate-900 antialiased">
