@@ -8,7 +8,9 @@ de dominio y crean o destruyen la sesión. No contienen reglas de negocio.
 from __future__ import annotations
 
 import logging
+from io import BytesIO
 
+import qrcode
 from django.contrib import messages
 from django.contrib.auth import login as auth_login
 from django.contrib.auth import logout as auth_logout
@@ -17,36 +19,48 @@ from django.core.exceptions import PermissionDenied
 from django.http import HttpRequest, HttpResponse
 from django.shortcuts import redirect, render
 from django.urls import reverse
+from django.utils import timezone
 from django.utils.http import url_has_allowed_host_and_scheme
+from django.views.decorators.cache import never_cache
 from django.views.decorators.http import require_POST
 
 from apps.accounts.exceptions import (
-    AccountInactiveError,
     AccountLockedError,
     AuthenticationDomainError,
     CorreoYaRegistradoError,
     InvalidCredentialsError,
     InvitacionInvalidaError,
-    OtpThrottledError,
+    TwoFactorInvalidCodeError,
+    TwoFactorStateError,
 )
 from apps.accounts.forms import (
     DefinirContrasenaForm,
     InvitacionForm,
-    OtpRequestForm,
-    OtpVerifyForm,
     PasswordLoginForm,
+    TotpCodeForm,
+    TwoFactorPasswordForm,
 )
 from apps.accounts.models import Invitacion, User
-from apps.accounts.services import build_invitacion_service, build_login_service, get_client_ip
+from apps.accounts.services import (
+    build_invitacion_service,
+    build_login_service,
+    get_client_ip,
+)
+from apps.accounts.services.two_factor import (
+    TwoFactorService,
+    build_two_factor_service,
+    totp_provisioning_uri,
+)
 
 logger = logging.getLogger(__name__)
 
 LOGIN_TEMPLATE = "accounts/login.html"
 
 GENERIC_CREDENTIALS_ERROR = "Correo o contraseña incorrectos."
-GENERIC_CODE_ERROR = "El código no es válido o ya expiró. Puedes solicitar uno nuevo."
-GENERIC_DELIVERY_ERROR = "No pudimos enviar el código en este momento. Intenta más tarde."
-GENERIC_UNAVAILABLE_ERROR = "El servicio de códigos no está disponible. Usa tu contraseña."
+PREAUTH_USER_SESSION_KEY = "two_factor_pending_user_id"
+PREAUTH_STARTED_SESSION_KEY = "two_factor_pending_started_at"
+PREAUTH_SESSION_SECONDS = 300
+TWO_FACTOR_TEMPLATE = "accounts/two_factor.html"
 
 
 def _format_wait(seconds: int) -> str:
@@ -79,6 +93,17 @@ def login_password(request: HttpRequest) -> HttpResponse:
     if request.user.is_authenticated:
         return redirect("workshop:buscar")
 
+    if request.method == "POST" and request.POST.get("action") == "verify_totp":
+        return _handle_totp_login(request)
+    if request.method == "POST" and request.POST.get("action") == "cancel_totp":
+        _clear_two_factor_login(request)
+        messages.info(request, "Verificación cancelada. Ingresa nuevamente.")
+        return redirect("accounts:login")
+
+    pending_user = _pending_two_factor_user(request)
+    if pending_user is not None:
+        return _render_totp_login(request)
+
     form = PasswordLoginForm(request.POST or None)
 
     if request.method == "POST" and form.is_valid():
@@ -102,6 +127,11 @@ def login_password(request: HttpRequest) -> HttpResponse:
             logger.exception("Fallo inesperado en el acceso con contraseña.")
             messages.error(request, GENERIC_CREDENTIALS_ERROR)
         else:
+            if user.totp_enabled:
+                request.session[PREAUTH_USER_SESSION_KEY] = user.pk
+                request.session[PREAUTH_STARTED_SESSION_KEY] = timezone.now().timestamp()
+                request.session.set_expiry(PREAUTH_SESSION_SECONDS)
+                return _render_totp_login(request)
             auth_login(request, user)
             return redirect(_resolve_redirect(request, reverse("workshop:buscar")))
 
@@ -110,134 +140,184 @@ def login_password(request: HttpRequest) -> HttpResponse:
         LOGIN_TEMPLATE,
         {
             "password_form": form,
-            "active_tab": "password",
             "next": _resolve_redirect(request, ""),
         },
     )
 
 
-# ---------------------------------------------------------------------------
-# Acceso con código temporal
-# ---------------------------------------------------------------------------
+def _pending_two_factor_user(request: HttpRequest) -> User | None:
+    user_id = request.session.get(PREAUTH_USER_SESSION_KEY)
+    started_at = request.session.get(PREAUTH_STARTED_SESSION_KEY)
+    if not isinstance(user_id, int) or not isinstance(started_at, (int, float)):
+        _clear_two_factor_login(request)
+        return None
+    if timezone.now().timestamp() - started_at > PREAUTH_SESSION_SECONDS:
+        _clear_two_factor_login(request)
+        return None
+    user = User.objects.filter(pk=user_id, is_active=True, totp_enabled=True).first()
+    if user is None:
+        _clear_two_factor_login(request)
+    return user
 
-ACTION_REQUEST = "request"
-ACTION_VERIFY = "verify"
+
+def _clear_two_factor_login(request: HttpRequest) -> None:
+    request.session.pop(PREAUTH_USER_SESSION_KEY, None)
+    request.session.pop(PREAUTH_STARTED_SESSION_KEY, None)
 
 
-@login_not_required
-def login_otp(request: HttpRequest) -> HttpResponse:
-    """
-    Acceso en dos pasos: se solicita el código y luego se valida.
-
-    El paso se determina con el campo explícito ``action`` en lugar de inferirlo
-    del estado del formulario.
-    """
-    if request.user.is_authenticated:
-        return redirect("workshop:buscar")
-
-    action = request.POST.get("action", "")
-
-    if request.method == "POST" and action == ACTION_REQUEST:
-        return _handle_otp_request(request)
-    if request.method == "POST" and action == ACTION_VERIFY:
-        return _handle_otp_verification(request)
-
+def _render_totp_login(request: HttpRequest, *, form: TotpCodeForm | None = None) -> HttpResponse:
     return render(
         request,
         LOGIN_TEMPLATE,
         {
-            "otp_request_form": OtpRequestForm(),
-            "active_tab": "otp",
+            "password_form": PasswordLoginForm(),
+            "totp_required": True,
+            "totp_form": form or TotpCodeForm(),
             "next": _resolve_redirect(request, ""),
         },
     )
 
 
-def _handle_otp_request(request: HttpRequest) -> HttpResponse:
-    form = OtpRequestForm(request.POST)
-    if not form.is_valid():
-        return render(
-            request,
-            LOGIN_TEMPLATE,
-            {"otp_request_form": form, "active_tab": "otp"},
-        )
-
-    email = form.cleaned_data["email"]
-    try:
-        build_login_service().request_otp(email=email, client_ip=get_client_ip(request))
-    except OtpThrottledError as exc:
+def _handle_totp_login(request: HttpRequest) -> HttpResponse:
+    user = _pending_two_factor_user(request)
+    if user is None:
         messages.error(
             request,
-            "Solicitaste códigos muy seguido. Espera "
-            f"{_format_wait(exc.retry_after_seconds)} antes de pedir otro.",
+            "La verificación expiró. Ingresa nuevamente tu correo y contraseña.",
         )
-        return render(
-            request,
-            LOGIN_TEMPLATE,
-            {"otp_request_form": form, "active_tab": "otp"},
-        )
-    except AuthenticationDomainError:
-        logger.exception("Fallo al solicitar el código de acceso.")
-        messages.error(request, GENERIC_DELIVERY_ERROR)
-        return render(
-            request,
-            LOGIN_TEMPLATE,
-            {"otp_request_form": form, "active_tab": "otp"},
-        )
+        return redirect("accounts:login")
 
-    messages.success(request, f"Si {email} está registrado, recibirá un código en breve.")
-    return render(
-        request,
-        LOGIN_TEMPLATE,
-        {
-            "otp_verify_form": OtpVerifyForm(initial={"email": email}),
-            "otp_email": email,
-            "next": _resolve_redirect(request, ""),
-            "active_tab": "otp",
-            "step": ACTION_VERIFY,
-        },
-    )
-
-
-def _handle_otp_verification(request: HttpRequest) -> HttpResponse:
-    form = OtpVerifyForm(request.POST)
+    form = TotpCodeForm(request.POST)
     if not form.is_valid():
-        return render(
-            request,
-            LOGIN_TEMPLATE,
-            {"otp_verify_form": form, "active_tab": "otp", "step": ACTION_VERIFY},
-        )
+        return _render_totp_login(request, form=form)
 
-    email = form.cleaned_data["email"]
     try:
-        user = build_login_service().authenticate_with_otp(
-            email=email,
+        build_two_factor_service().verify_login_code(
+            user=user,
             code=form.cleaned_data["code"],
             client_ip=get_client_ip(request),
         )
-    except AccountInactiveError:
-        messages.error(request, "Tu cuenta está deshabilitada. Contacta al administrador.")
-        return render(
+    except AccountLockedError as exc:
+        messages.error(
             request,
-            LOGIN_TEMPLATE,
-            {"otp_request_form": OtpRequestForm(initial={"email": email}), "active_tab": "otp"},
+            f"Demasiados intentos. Intenta nuevamente en {_format_wait(exc.retry_after_seconds)}.",
         )
-    except AuthenticationDomainError:
-        logger.info("Código de acceso rechazado para %s.", email)
-        messages.error(request, GENERIC_CODE_ERROR)
-        return render(
-            request,
-            LOGIN_TEMPLATE,
-            {
-                "otp_verify_form": OtpVerifyForm(initial={"email": email}),
-                "otp_email": email,
-                "active_tab": "otp",
-                "step": ACTION_VERIFY,
-            },
-        )
+        return _render_totp_login(request, form=form)
+    except TwoFactorInvalidCodeError:
+        messages.error(request, "El código no es válido o ya fue utilizado.")
+        return _render_totp_login(request, form=form)
+    except TwoFactorStateError:
+        _clear_two_factor_login(request)
+        messages.error(request, "La configuración de dos pasos cambió. Ingresa nuevamente.")
+        return redirect("accounts:login")
 
+    _clear_two_factor_login(request)
     auth_login(request, user)
     return redirect(_resolve_redirect(request, reverse("workshop:buscar")))
+
+
+@never_cache
+def two_factor_settings(request: HttpRequest) -> HttpResponse:
+    """Configura opcionalmente una aplicación TOTP para la cuenta actual."""
+    service = build_two_factor_service()
+    if request.method == "POST":
+        action = request.POST.get("action")
+        form = TwoFactorPasswordForm(request.POST)
+
+        if action in {"enable", "disable"} and form.is_valid():
+            if not form.cleaned_data["code"]:
+                form.add_error("code", "Ingresa el código de tu aplicación autenticadora.")
+            else:
+                try:
+                    if action == "enable":
+                        service.enable(
+                            user=request.user,
+                            password=form.cleaned_data["password"],
+                            code=form.cleaned_data["code"],
+                            client_ip=get_client_ip(request),
+                        )
+                        messages.success(request, "Autenticación en dos pasos activada.")
+                    else:
+                        service.disable(
+                            user=request.user,
+                            password=form.cleaned_data["password"],
+                            code=form.cleaned_data["code"],
+                            client_ip=get_client_ip(request),
+                        )
+                        messages.success(request, "Autenticación en dos pasos desactivada.")
+                    return redirect("accounts:two_factor")
+                except AccountLockedError as exc:
+                    messages.error(
+                        request,
+                        f"Demasiados intentos. Espera {_format_wait(exc.retry_after_seconds)}.",
+                    )
+                except InvalidCredentialsError:
+                    form.add_error("password", "La contraseña actual no es correcta.")
+                except TwoFactorInvalidCodeError:
+                    form.add_error("code", "El código no es válido o ya fue utilizado.")
+                except TwoFactorStateError as exc:
+                    messages.error(request, str(exc))
+
+        elif action == "begin" and form.is_valid():
+            try:
+                service.begin_setup(
+                    user=request.user,
+                    password=form.cleaned_data["password"],
+                    client_ip=get_client_ip(request),
+                )
+                messages.info(request, "Escanea el QR y confirma con un código vigente.")
+                return redirect("accounts:two_factor")
+            except AccountLockedError as exc:
+                messages.error(
+                    request,
+                    f"Demasiados intentos. Espera {_format_wait(exc.retry_after_seconds)}.",
+                )
+            except InvalidCredentialsError:
+                form.add_error("password", "La contraseña actual no es correcta.")
+            except TwoFactorStateError as exc:
+                messages.error(request, str(exc))
+        elif action not in {"begin", "enable", "disable"}:
+            messages.error(request, "Acción de seguridad no válida.")
+
+        return _render_two_factor_settings(request, service, form=form)
+
+    return _render_two_factor_settings(request, service)
+
+
+def _render_two_factor_settings(
+    request: HttpRequest,
+    service: TwoFactorService,
+    *,
+    form: TwoFactorPasswordForm | None = None,
+) -> HttpResponse:
+    pending_secret = service.pending_secret(user=request.user)
+    return render(
+        request,
+        TWO_FACTOR_TEMPLATE,
+        {
+            "form": form or TwoFactorPasswordForm(),
+            "pending_secret": pending_secret,
+            "qr_url": reverse("accounts:two_factor_qr") if pending_secret else "",
+        },
+    )
+
+
+@never_cache
+def two_factor_qr(request: HttpRequest) -> HttpResponse:
+    """Entrega un QR TOTP privado para el usuario autenticado actual."""
+    service = build_two_factor_service()
+    secret = service.pending_secret(user=request.user)
+    if secret is None:
+        return HttpResponse(status=404)
+
+    uri = totp_provisioning_uri(email=request.user.email, secret=secret)
+    image = qrcode.make(uri)
+    output = BytesIO()
+    image.save(output, format="PNG")
+    response = HttpResponse(output.getvalue(), content_type="image/png")
+    response["Cache-Control"] = "private, no-store"
+    response["Pragma"] = "no-cache"
+    return response
 
 
 # ---------------------------------------------------------------------------

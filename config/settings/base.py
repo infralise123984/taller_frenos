@@ -121,7 +121,7 @@ else:
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 # ---------------------------------------------------------------------------
-# Caché (usado para rate limiting de login y OTP)
+# Caché (usado para rate limiting del login)
 #
 # Sin CACHE_URL se usa memoria del proceso: suficiente en desarrollo, pero no
 # válido con varios workers (cada uno tendría su propio contador), por lo que
@@ -179,31 +179,13 @@ SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = "Lax"
 
 # ---------------------------------------------------------------------------
-# Reglas de negocio de autenticación (OTP y bloqueo por intentos)
+# Reglas de negocio de autenticación
 # ---------------------------------------------------------------------------
-
-# Proveedor de OTP. "local" genera y valida el código dentro de Django
-# (útil para desarrollo y pruebas sin credenciales externas); "supabase"
-# delega el envío y la validación a Supabase Auth.
-OTP_PROVIDER = env("OTP_PROVIDER", default="local")
-
-OTP_CODE_LENGTH = env.int("OTP_CODE_LENGTH", default=6)
-OTP_TTL_SECONDS = env.int("OTP_TTL_SECONDS", default=300)
-OTP_MAX_ATTEMPTS = env.int("OTP_MAX_ATTEMPTS", default=5)
-OTP_RESEND_COOLDOWN_SECONDS = env.int("OTP_RESEND_COOLDOWN_SECONDS", default=60)
-OTP_MAX_REQUESTS_PER_HOUR = env.int("OTP_MAX_REQUESTS_PER_HOUR", default=10)
-
-SUPABASE_URL = env("SUPABASE_URL", default="")
-SUPABASE_ANON_KEY = env("SUPABASE_ANON_KEY", default="")
-SUPABASE_TIMEOUT_SECONDS = env.float("SUPABASE_TIMEOUT_SECONDS", default=10.0)
-
-# Denegación por defecto: el correo debe existir previamente en Supabase. Solo
-# activar si se acepta que Supabase cree identidades por su cuenta.
-SUPABASE_OTP_CREATE_USER = env.bool("SUPABASE_OTP_CREATE_USER", default=False)
 
 # Bloqueo temporal tras intentos fallidos de contraseña.
 LOGIN_MAX_FAILED_ATTEMPTS = env.int("LOGIN_MAX_FAILED_ATTEMPTS", default=5)
 LOGIN_LOCKOUT_SECONDS = env.int("LOGIN_LOCKOUT_SECONDS", default=900)
+TOTP_ENCRYPTION_KEY = env("TOTP_ENCRYPTION_KEY", default="")
 
 # Vigencia de los enlaces de invitación. Largo a propósito: nadie revisa el
 # correo al instante y volver a invitar es barato.
@@ -265,7 +247,7 @@ SECURE_CONTENT_TYPE_NOSNIFF = True
 SECURE_REFERRER_POLICY = "same-origin"
 
 # ---------------------------------------------------------------------------
-# Correo (necesario para el OTP local)
+# Correo (opcional; usado para enviar invitaciones)
 # ---------------------------------------------------------------------------
 
 EMAIL_BACKEND = env(

@@ -14,99 +14,40 @@
   </div>
 
   <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
-
-    {# Dos formas de entrar, cada una en su propia URL para que el botón "atrás" funcione. #}
-    <div class="grid grid-cols-2 gap-1 border-b border-slate-200 p-1.5">
-      <a href="{% url 'accounts:login' %}"
-         class="rounded-xl px-4 py-2.5 text-center text-sm font-semibold transition
-                {% if active_tab == 'otp' %}text-slate-600 hover:bg-slate-50{% else %}bg-sky-700 text-white{% endif %}">
-        Contraseña
-      </a>
-      <a href="{% url 'accounts:login_otp' %}"
-         class="rounded-xl px-4 py-2.5 text-center text-sm font-semibold transition
-                {% if active_tab == 'otp' %}bg-sky-700 text-white{% else %}text-slate-600 hover:bg-slate-50{% endif %}">
-        Código por correo
-      </a>
-    </div>
-
     <div class="p-6">
+      {% if totp_required %}
+        <h2 class="text-lg font-semibold text-slate-900">Verificación en dos pasos</h2>
+        <p class="mb-5 mt-1 text-sm text-slate-500">Ingresa el código de tu aplicación autenticadora.</p>
 
-      {% if active_tab == 'otp' %}
-        {# ---------------------------- Acceso con código ---------------------------- #}
-        {% if step == 'verify' %}
-
-          <h2 class="text-lg font-semibold text-slate-900">Ingresa el código</h2>
-          <p class="mb-5 mt-1 text-sm text-slate-500">
-            Enviamos un código a <strong class="text-slate-700">{{ otp_email }}</strong>.
-            Revisa tu correo e ingrésalo aquí.
-          </p>
-
-          <form method="post" novalidate>
-            {% csrf_token %}
-            <input type="hidden" name="action" value="verify">
-            {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
-            {{ otp_verify_form.email }}
-
-            {% include "partials/_field.html" with field=otp_verify_form.code %}
-
-            <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl bg-sky-700 px-6 py-4 text-lg font-semibold text-white shadow-sm transition hover:bg-sky-800 focus:outline-none focus:ring-2 focus:ring-sky-300 focus:ring-offset-2">
-              Entrar
-            </button>
-          </form>
-
-          <form method="post" class="mt-4">
-            {% csrf_token %}
-            <input type="hidden" name="action" value="request">
-            <input type="hidden" name="email" value="{{ otp_email }}">
-            <button type="submit" class="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm font-medium text-slate-600 hover:bg-slate-50">
-              No me llegó · enviar otro código
-            </button>
-          </form>
-
-          <p class="mt-4 text-center">
-            <a href="{% url 'accounts:login_otp' %}" class="text-sm font-medium text-sky-700 hover:underline">
-              Usar otro correo
-            </a>
-          </p>
-
-        {% else %}
-
-          <h2 class="text-lg font-semibold text-slate-900">Entrar con código</h2>
-          <p class="mb-5 mt-1 text-sm text-slate-500">
-            Te enviaremos un código temporal al correo registrado. Útil si olvidaste tu contraseña.
-          </p>
-
-          <form method="post" novalidate>
-            {% csrf_token %}
-            <input type="hidden" name="action" value="request">
-            {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
-
-            {% include "partials/_field.html" with field=otp_request_form.email %}
-
-            <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl bg-sky-700 px-6 py-4 text-lg font-semibold text-white shadow-sm transition hover:bg-sky-800 focus:outline-none focus:ring-2 focus:ring-sky-300 focus:ring-offset-2">
-              Enviar código
-            </button>
-          </form>
-
-        {% endif %}
-
+        <form method="post" novalidate>
+          {% csrf_token %}
+          <input type="hidden" name="action" value="verify_totp">
+          {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
+          {% include "partials/_field.html" with field=totp_form.code %}
+          <button type="submit" class="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-sky-700 px-6 py-4 text-lg font-semibold text-white shadow-sm transition hover:bg-sky-800 focus:outline-none focus:ring-2 focus:ring-sky-300 focus:ring-offset-2">
+            Verificar código
+          </button>
+        </form>
+        <form method="post" class="mt-3 text-center">
+          {% csrf_token %}
+          <input type="hidden" name="action" value="cancel_totp">
+          <button type="submit" class="text-sm font-medium text-slate-600 underline hover:text-slate-900">
+            Cancelar e ingresar nuevamente
+          </button>
+        </form>
       {% else %}
-        {# --------------------------- Acceso con contraseña -------------------------- #}
-
         <h2 class="text-lg font-semibold text-slate-900">Entrar con contraseña</h2>
         <p class="mb-5 mt-1 text-sm text-slate-500">Usa el correo con el que fuiste registrado.</p>
 
         <form method="post" novalidate>
           {% csrf_token %}
           {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
-
           {% include "partials/_field.html" with field=password_form.email %}
 
           <div class="mb-4">
             <label for="{{ password_form.password.id_for_label }}" class="mb-1.5 block text-sm font-medium text-slate-700">
               {{ password_form.password.label }}{% if password_form.password.field.required %}<span class="text-red-600" aria-hidden="true"> *</span>{% endif %}
             </label>
-
             <div class="relative">
               {{ password_form.password }}
               <button type="button"
@@ -116,11 +57,9 @@
                 Ver
               </button>
             </div>
-
             {% if password_form.password.help_text %}
               <p class="mt-1 text-xs text-slate-500">{{ password_form.password.help_text }}</p>
             {% endif %}
-
             {% for error in password_form.password.errors %}
               <p class="mt-1 text-sm font-medium text-red-700">{{ error }}</p>
             {% endfor %}
@@ -130,15 +69,13 @@
             Entrar
           </button>
         </form>
-
       {% endif %}
-
     </div>
   </div>
 
-  <p class="mt-6 text-center text-xs text-slate-400">
-    Si no puedes ingresar, avisa a la persona encargada del sistema.
-  </p>
+  {% if not totp_required %}<p class="mt-6 text-center text-xs text-slate-400">
+    Si olvidaste tu contraseña, contacta a la persona encargada del sistema.
+  </p>{% endif %}
 
 </div>
 {% endblock %}

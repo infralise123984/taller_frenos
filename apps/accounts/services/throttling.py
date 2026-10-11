@@ -89,23 +89,3 @@ class RateLimiter(_CacheBacked):
 
     def retry_after_seconds(self, identifier: str) -> int:
         return self._remaining_ttl(self._key(identifier), fallback=self._window_seconds)
-
-
-class Cooldown(_CacheBacked):
-    """Impide repetir una acción antes de que transcurra un tiempo mínimo."""
-
-    def __init__(self, *, namespace: str, seconds: int, cache_backend=None) -> None:
-        super().__init__(namespace=namespace, cache_backend=cache_backend)
-        self._seconds = seconds
-
-    def is_active(self, identifier: str) -> bool:
-        return self._cache.get(self._key(identifier), False) is True
-
-    def start(self, identifier: str) -> None:
-        self._cache.set(self._key(identifier), True, timeout=self._seconds)
-
-    def remaining_seconds(self, identifier: str) -> int:
-        return self._remaining_ttl(self._key(identifier), fallback=self._seconds)
-
-    def clear(self, identifier: str) -> None:
-        self._cache.delete(self._key(identifier))

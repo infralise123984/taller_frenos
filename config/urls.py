@@ -6,8 +6,11 @@ from django.contrib import admin
 from django.urls import include, path
 from django.views.generic import RedirectView
 
+from config.views import service_worker
+
 urlpatterns = [
     path("", RedirectView.as_view(pattern_name="workshop:buscar", permanent=False)),
+    path("sw.js", service_worker, name="service_worker"),
     path("admin/", admin.site.urls),
     path("cuenta/", include("apps.accounts.urls", namespace="accounts")),
     path("taller/", include("apps.workshop.urls", namespace="workshop")),

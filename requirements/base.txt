@@ -2,5 +2,6 @@
 Django==5.2.*
 django-environ==0.12.*
 argon2-cffi==25.1.*
-httpx==0.28.*
+cryptography==46.*
+qrcode[pil]==8.*
 whitenoise==6.11.*

@@ -20,10 +20,6 @@ class InvalidCredentialsError(AuthenticationDomainError):
     """Correo o contraseña incorrectos, o la cuenta no existe."""
 
 
-class AccountInactiveError(AuthenticationDomainError):
-    """La cuenta existe pero está deshabilitada."""
-
-
 class AccountLockedError(AuthenticationDomainError):
     """Se superó el máximo de intentos fallidos y la cuenta está bloqueada temporalmente."""
 
@@ -32,33 +28,12 @@ class AccountLockedError(AuthenticationDomainError):
         self.retry_after_seconds = retry_after_seconds
 
 
-# ---------------------------------------------------------------------------
-# Acceso por código de un solo uso (OTP)
-# ---------------------------------------------------------------------------
+class TwoFactorInvalidCodeError(AuthenticationDomainError):
+    """El código TOTP es incorrecto, expiró o ya fue utilizado."""
 
 
-class OtpError(AuthenticationDomainError):
-    """Error base del flujo OTP."""
-
-
-class OtpThrottledError(OtpError):
-    """Se solicitó un código demasiadas veces en poco tiempo."""
-
-    def __init__(self, retry_after_seconds: int) -> None:
-        super().__init__("Solicitudes de código demasiado frecuentes.")
-        self.retry_after_seconds = retry_after_seconds
-
-
-class OtpDeliveryError(OtpError):
-    """El proveedor de OTP no pudo entregar el código."""
-
-
-class OtpInvalidError(OtpError):
-    """El código ingresado no es válido o ya expiró."""
-
-
-class OtpVerificationUnavailableError(OtpError):
-    """No fue posible verificar el código por un fallo del proveedor."""
+class TwoFactorStateError(AuthenticationDomainError):
+    """El estado actual no permite completar la operación de dos factores."""
 
 
 # ---------------------------------------------------------------------------

@@ -43,30 +43,13 @@ class PasswordLoginForm(forms.Form):
     )
 
 
-class OtpRequestForm(forms.Form):
-    """Paso 1 del acceso con código temporal."""
+class TotpCodeForm(forms.Form):
+    """Código temporal emitido por una aplicación autenticadora."""
 
-    email = forms.EmailField(
-        label="Correo electrónico",
-        widget=forms.EmailInput(
-            attrs={
-                "class": TEXT_INPUT_CLASSES,
-                "placeholder": "taller@ejemplo.cl",
-                "autocomplete": "email",
-                "inputmode": "email",
-                "autofocus": True,
-            }
-        ),
-    )
-
-
-class OtpVerifyForm(forms.Form):
-    """Paso 2: el código que llegó al correo."""
-
-    email = forms.EmailField(widget=forms.HiddenInput)
     code = forms.CharField(
         label="Código de 6 dígitos",
-        max_length=12,
+        max_length=6,
+        min_length=6,
         widget=forms.TextInput(
             attrs={
                 "class": (
@@ -81,8 +64,43 @@ class OtpVerifyForm(forms.Form):
     )
 
     def clean_code(self) -> str:
-        code = self.cleaned_data["code"].strip().replace(" ", "")
+        code = self.cleaned_data["code"].strip()
         if not code.isdigit():
+            raise forms.ValidationError("El código debe contener solo números.")
+        return code
+
+
+class TwoFactorPasswordForm(forms.Form):
+    """Confirma contraseña y, opcionalmente, un código TOTP."""
+
+    password = forms.CharField(
+        label="Contraseña actual",
+        strip=False,
+        widget=forms.PasswordInput(
+            attrs={
+                "class": TEXT_INPUT_CLASSES,
+                "autocomplete": "current-password",
+            }
+        ),
+    )
+    code = forms.CharField(
+        label="Código de 6 dígitos",
+        required=False,
+        max_length=6,
+        min_length=6,
+        widget=forms.TextInput(
+            attrs={
+                "class": f"{TEXT_INPUT_CLASSES} text-center tracking-[0.35em] font-semibold",
+                "placeholder": "000000",
+                "autocomplete": "one-time-code",
+                "inputmode": "numeric",
+            }
+        ),
+    )
+
+    def clean_code(self) -> str:
+        code = self.cleaned_data["code"].strip()
+        if code and not code.isdigit():
             raise forms.ValidationError("El código debe contener solo números.")
         return code
 

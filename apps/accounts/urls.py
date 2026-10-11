@@ -8,8 +8,9 @@ app_name = "accounts"
 
 urlpatterns = [
     path("ingresar/", views.login_password, name="login"),
-    path("ingresar/codigo/", views.login_otp, name="login_otp"),
     path("salir/", views.logout_view, name="logout"),
+    path("seguridad/2fa/", views.two_factor_settings, name="two_factor"),
+    path("seguridad/2fa/qr/", views.two_factor_qr, name="two_factor_qr"),
     path("invitaciones/", views.invitaciones, name="invitaciones"),
     path("invitaciones/<str:token>/", views.aceptar_invitacion, name="invitacion_aceptar"),
 ]

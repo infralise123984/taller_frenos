@@ -39,7 +39,7 @@ El sistema debe permitir:
 
 Dado que es una herramienta de uso interno y personal para el taller:
 * **Uso exclusivo:** Solo personas autorizadas del taller deben poder ingresar a ver y editar los datos.
-* **Acceso flexible y sin trabas:** La operadora puede iniciar sesión mediante su contraseña habitual o, si lo prefiere, solicitando un código temporal numérico que le llega directo a su correo electrónico. Esto evita bloqueos o frustraciones si llega a olvidar su clave durante una jornada de trabajo en el taller.
+* **Acceso protegido:** La operadora inicia sesión con su correo y contraseña. Si olvida la contraseña, debe contactar a la persona administradora para recuperar el acceso.
 
 ---
 

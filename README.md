@@ -27,8 +27,15 @@ python manage.py runserver
 
 Abrir <http://127.0.0.1:8000/>.
 
-En desarrollo el correo se imprime en la consola del servidor, así que el
-código temporal de acceso aparece ahí (`EMAIL_BACKEND` = consola).
+En desarrollo, los correos de invitación se imprimen en la consola del servidor
+(`EMAIL_BACKEND` = consola). Si alguien olvida su contraseña, debe contactar a
+la persona administradora para recuperar el acceso.
+
+En teléfonos compatibles, se puede instalar **Taller de Frenos** desde el menú
+del navegador usando **Añadir a pantalla de inicio** o **Instalar aplicación**.
+La PWA guarda recursos estáticos para acelerar la carga, pero requiere conexión
+para abrir pantallas y consultar o modificar fichas; nunca almacena páginas ni
+datos del taller en caché.
 
 ### Comandos útiles
 
@@ -49,8 +56,7 @@ config/
   urls.py
 apps/
   ui.py               clases de presentación compartidas
-  accounts/           usuario propio, login por contraseña y por código
-    providers/        puerto OtpProvider + implementaciones local y Supabase
+  accounts/           usuarios, acceso con contraseña e invitaciones
     services/         LoginService, limitadores de tasa, IP del cliente
   workshop/           clientes, vehículos, órdenes de trabajo
     selectors.py      consultas de lectura (sin N+1)
@@ -85,63 +91,33 @@ Detalles que conviene conocer:
 
 - Las cuentas nuevas entran como **usuarias normales**, sin acceso al panel de
   administración: no lo necesitan para el trabajo del mesón.
-- El token no se guarda nunca en claro, solo su hash SHA-256. Aquí sí basta un
-  hash rápido, a diferencia del código de seis dígitos: 32 bytes aleatorios no
-  son adivinables por fuerza bruta.
+- El token no se guarda nunca en claro, solo su hash SHA-256. Sus 32 bytes
+  aleatorios no son adivinables por fuerza bruta.
 - Emitir una invitación nueva para el mismo correo **anula la anterior**.
 - Si el correo ya tiene cuenta, la invitación se rechaza en el formulario.
 
 ### Entrar al sistema
 
-Hay dos caminos, ambos terminan creando **una sesión de Django**:
+El único método de acceso es correo y contraseña; tras autenticar, Django crea
+una sesión. Si una persona olvida su contraseña, debe pedir ayuda a la persona
+administradora del sistema.
 
-### 1. Correo y contraseña
-
-Se apoya en `django.contrib.auth.authenticate`. Tras
-`LOGIN_MAX_FAILED_ATTEMPTS` fallos (5 por defecto) la cuenta y la IP quedan
-bloqueadas `LOGIN_LOCKOUT_SECONDS` (15 minutos). El contador se guarda en la
+El login limita intentos fallidos por correo e IP:
+`LOGIN_MAX_FAILED_ATTEMPTS` (5 por defecto) bloquea temporalmente durante
+`LOGIN_LOCKOUT_SECONDS` (15 minutos). El desafío TOTP y las operaciones de
+activación/desactivación comparten ese límite. Los contadores se guardan en la
 caché configurada.
 
-### 2. Correo y código temporal
-
-Flujo en dos pasos con `action` explícito (`request` / `verify`):
-
-1. Se pide un código para un correo.
-2. Se valida el código y, si corresponde, se inicia sesión.
-
-El envío y la validación se delegan a un `OtpProvider`. Hay dos
-implementaciones intercambiables mediante `OTP_PROVIDER`:
-
-| Valor | Comportamiento | Uso |
-| --- | --- | --- |
-| `local` | Django genera, hashea, envía y valida el código | Desarrollo y pruebas |
-| `supabase` | Supabase Auth envía y valida; Django emite la sesión | Producción |
-
-**Diseño híbrido:** Supabase actúa solo como proveedor de identidad de segundo
-factor. Los usuarios, los roles y las sesiones siguen viviendo en Django, de
-modo que el dominio no queda acoplado a un servicio externo. Cambiar de
-proveedor implica escribir una clase nueva que implemente `OtpProvider` y
-registrarla en `apps/accounts/providers/factory.py`.
-
-### Configurar Supabase
-
-1. Crear un proyecto en Supabase y habilitar el proveedor **Email** con
-   *Email OTP* activado.
-2. Completar en `.env`:
-
-   ```ini
-   OTP_PROVIDER=supabase
-   SUPABASE_URL=https://<proyecto>.supabase.co
-   SUPABASE_ANON_KEY=<anon key>
-   SUPABASE_OTP_CREATE_USER=False
-   ```
-
-3. Verificar que los correos del taller existan como usuarios en Supabase
-   (con `SUPABASE_OTP_CREATE_USER=False`, que es lo recomendado: Supabase no
-   debe crear identidades por su cuenta).
-
-`config/settings/prod.py` aborta el arranque si `OTP_PROVIDER` no es
-`supabase` o si faltan las credenciales.
+Cada usuario puede activar 2FA desde **Seguridad** escaneando un QR con una
+aplicación autenticadora. Para iniciar o terminar la configuración se pide la
+contraseña actual y un código vigente. La semilla se cifra en la base de datos
+con `TOTP_ENCRYPTION_KEY`; producción no arranca sin una clave Fernet válida.
+Genera una clave con `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
+y guárdala como secreto en el entorno de despliegue. Debe mantenerse estable y
+respaldarse de forma segura: perderla o cambiarla impide descifrar las semillas
+existentes. Si alguien pierde su dispositivo, administración verifica su
+identidad y usa la acción **Restablecer 2FA** en la cuenta correspondiente; la
+persona puede volver a configurarlo después.
 
 ---
 
@@ -150,7 +126,7 @@ registrarla en `apps/accounts/providers/factory.py`.
 | Ruta | Pantalla |
 | --- | --- |
 | `/cuenta/ingresar/` | Login con contraseña |
-| `/cuenta/ingresar/codigo/` | Login con código por correo |
+| `/cuenta/seguridad/2fa/` | Configuración de autenticación en dos pasos |
 | `/taller/` | Buscar por patente + últimos ingresos |
 | `/taller/vehiculo/<patente>/` | Ficha del vehículo e historial |
 | `/taller/cliente/<id>/` | Ficha del cliente y sus vehículos |
@@ -178,10 +154,8 @@ ficha de cliente.
 | Decisión | Principio que la justifica |
 | --- | --- |
 | Vistas solo traducen HTTP; la lógica vive en `selectors` y `services` | SRP |
-| `OtpProvider` como abstracción con implementaciones intercambiables | DIP + OCP |
 | `LoginService` no conoce HTTP: recibe datos y devuelve el usuario | SRP, testeabilidad con dobles |
 | `LoginRequiredMiddleware` global: todo exige sesión salvo excepción explícita | Denegación por defecto |
-| Código OTP guardado solo como hash Argon2 | Nunca persistir secretos en claro |
 | Errores de dominio con mensajes genéricos; el detalle va a los logs | No filtrar información interna |
 | Mismo mensaje para "cuenta inexistente" y "contraseña incorrecta" | Evitar enumeración de usuarios |
 | Patente y teléfono se almacenan normalizados | Una sola representación evita duplicados |
@@ -215,10 +189,11 @@ como instrucciones de proyecto en
 ## Seguridad implementada
 
 - Contraseñas con **Argon2** y validadores de robustez (mínimo 10 caracteres).
-- Códigos OTP de 6 dígitos generados con `secrets`, hasheados, de un solo uso,
-  con expiración (5 min) y máximo de intentos (5).
-- Límites de tasa por correo y por IP en el login y en la solicitud de códigos,
-  más una espera mínima entre solicitudes.
+- Límites de tasa por correo y por IP en el login con contraseña.
+- 2FA TOTP opcional por cuenta; semilla cifrada con una clave separada, QR sin
+  caché, desafío preautenticado de corta duración y rechazo de códigos repetidos.
+- Recuperación de 2FA mediante restablecimiento administrativo tras verificar
+  identidad; la semilla no se muestra en el panel de administración.
 - Cierre de sesión solo por POST.
 - Validación de `next` contra redirecciones abiertas.
 - Cabeceras `X-Frame-Options: DENY` y `X-Content-Type-Options: nosniff`.
@@ -268,11 +243,11 @@ hay que declararlo.
 | Variable | Valor |
 | --- | --- |
 | `DJANGO_SECRET_KEY` | Botón *Generate* de Render |
+| `TOTP_ENCRYPTION_KEY` | Clave Fernet generada y respaldada de forma segura; no rotarla sin plan de migración |
 | `DJANGO_DEBUG` | `False` |
 | `DATABASE_URL` | *Internal Database URL* de la base PostgreSQL |
 | `CACHE_URL` | `dbcache://frenos_cache` |
-| `OTP_PROVIDER` | `local` o `supabase` |
-| `EMAIL_BACKEND` | `django.core.mail.backends.smtp.EmailBackend` (obligatorio si `OTP_PROVIDER=local`) |
+| `EMAIL_BACKEND` | Backend de correo opcional para enviar invitaciones; el enlace también se muestra en pantalla |
 | `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD`, `EMAIL_USE_TLS` | Datos del proveedor SMTP |
 | `DEFAULT_FROM_EMAIL` | Un remitente real, nunca `@localhost` |
 | `DJANGO_TIME_ZONE` | `America/Santiago` |
@@ -314,16 +289,9 @@ usando la PostgreSQL que ya existe: sin servicio extra, sin costo adicional y
 sobrevive a los reinicios. `build.sh` crea la tabla automáticamente. Si el
 sistema crece, pasar a Redis es cambiar `CACHE_URL` por `redis://…`.
 
-**El generador de códigos de Django sirve en producción, pero el correo tiene
-que poder salir.** Ya hashea los códigos con Argon2, los invalida al primer uso y
-los hace expirar. Lo que el arranque exige es un backend de correo real; con el
-de consola el código quedaría solo en los logs, así que el sistema se niega a
-arrancar avisando, en lugar de fallar el día que alguien olvide su contraseña.
-
-Eso sí: **un servicio web gratuito de Render no puede enviar tráfico saliente por
-los puertos 25, 465 ni 587**, que son los de SMTP. Con `OTP_PROVIDER=local` la
-aplicación arranca bien y el envío falla recién en tiempo de ejecución. En el plan
-gratuito, la opción que funciona es `OTP_PROVIDER=supabase`, que viaja por HTTPS.
+El correo SMTP es opcional: se usa solo para enviar invitaciones. El enlace de
+invitación también se muestra en pantalla, así que puede entregarse por otra vía
+si el proveedor de correo no está configurado o Render bloquea SMTP.
 
 ### ¿Hace falta una base de datos?
 
@@ -347,6 +315,8 @@ usar un PostgreSQL externo (Supabase, Neon) como `DATABASE_URL`.
 - **No hay acceso a Shell**, por eso configura las variables de bootstrap para
   crear la primera cuenta administrativa durante el build.
 - No se puede enviar correo por SMTP (puertos 25, 465 y 587 bloqueados).
+- Las invitaciones siguen funcionando: el enlace de alta también aparece en
+  pantalla para entregarlo manualmente.
 - 512 MB de RAM por instancia. No definas `WEB_CONCURRENCY`; el worker único que
   gunicorn usa por defecto es lo adecuado para este tamaño.
 - El plan incluye 750 horas de instancia al mes por espacio de trabajo.
@@ -365,13 +335,10 @@ probó el proyecto y la que usa la CI.
 python manage.py test
 ```
 
-163 pruebas. Cubren el proveedor OTP local, el servicio de login (incluidos
-bloqueos y ausencia de enumeración de usuarios), las vistas de acceso, la
+La suite cubre el servicio y las vistas de acceso (incluidos bloqueos, rechazo
+del antiguo endpoint de códigos y ausencia de enumeración de usuarios), la
 normalización de patentes y teléfonos, el registro de ingresos, las líneas de la
 ficha (precios, descuentos, corrección e impresión) y la localización chilena.
-
-Las pruebas de vistas usan un proveedor de OTP falso, de modo que no dependen de
-red ni de credenciales.
 
 GitHub Actions ejecuta estas mismas verificaciones (`ruff check`,
 `ruff format --check` y las pruebas) en cada push a `main`, `desarrollo` y en

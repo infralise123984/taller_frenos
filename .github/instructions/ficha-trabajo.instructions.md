@@ -546,7 +546,7 @@ agrega dos pantallas nuevas.
 | **Precarga de la patente** al registrar un auto ya conocido (`?patente=`) | [`views.ingreso_create`](../../apps/workshop/views.py) | Se mantiene igual |
 | **Reutilizar cliente y vehículo** en vez de duplicarlos (teléfono y patente normalizados) | `RegistroIngresoService._resolver_cliente` / `_resolver_vehiculo` en [`services/ingresos.py`](../../apps/workshop/services/ingresos.py) | El servicio se extiende, no se reescribe: el auto que ya vino suma una visita nueva |
 | **Varias visitas en un mismo día** | No se bloquean duplicados por fecha ni por kilometraje | Se permiten porque el kilometraje actual no se solicita |
-| **Acceso**: contraseña o código por correo, todo con sesión iniciada | `apps/accounts/` + `LoginRequiredMiddleware` | Las vistas nuevas quedan cubiertas por la misma política |
+| **Acceso**: correo y contraseña, todo con sesión iniciada | `apps/accounts/` + `LoginRequiredMiddleware` | Las vistas nuevas quedan cubiertas por la misma política |
 | **Formatos chilenos** (miles con punto, fechas en español) | `config/formats/es_CL/` | Precios y total usan el mismo formato |
 | **94 pruebas actuales** | `apps/workshop/tests/`, `apps/accounts/tests/` | Deben seguir verdes; solo cambian las que hoy usan `TipoTrabajo` |
 

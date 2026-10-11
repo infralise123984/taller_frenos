@@ -1,0 +1,26 @@
+{
+  "id": "/",
+  "name": "Taller de Frenos",
+  "short_name": "Taller Frenos",
+  "description": "Registro e historial de trabajos del taller de frenos.",
+  "lang": "es-CL",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f1f5f9",
+  "theme_color": "#0369a1",
+  "icons": [
+    {
+      "src": "/static/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/static/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

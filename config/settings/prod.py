@@ -5,6 +5,7 @@ Aplica "fail fast": si falta una variable crítica o una configuración queda en
 modo inseguro, el proceso no arranca en lugar de exponer el sistema.
 """
 
+from cryptography.fernet import Fernet
 from django.core.exceptions import ImproperlyConfigured
 
 from .base import *  # noqa: F403
@@ -53,33 +54,13 @@ if not CACHE_URL:  # noqa: F405
         "(requiere 'manage.py createcachetable'), redis://… o memcache://…"
     )
 
-# El proveedor de OTP debe poder entregar el código de verdad.
-_BACKENDS_SIN_ENTREGA = {
-    "django.core.mail.backends.console.EmailBackend",
-    "django.core.mail.backends.dummy.EmailBackend",
-    "django.core.mail.backends.locmem.EmailBackend",
-}
+if not TOTP_ENCRYPTION_KEY:  # noqa: F405
+    raise ImproperlyConfigured("TOTP_ENCRYPTION_KEY es obligatoria en producción.")
 
-if OTP_PROVIDER == "local":  # noqa: F405
-    # El generador local es perfectamente válido en producción: hashea el código
-    # con Argon2, lo invalida al primer uso y lo hace expirar. Lo único que exige
-    # es un backend de correo que entregue de verdad; con el de consola el código
-    # quedaría solo en los logs y nadie podría ingresar con él.
-    if EMAIL_BACKEND in _BACKENDS_SIN_ENTREGA:  # noqa: F405
-        raise ImproperlyConfigured(
-            f"OTP_PROVIDER=local no puede usar '{EMAIL_BACKEND}' en producción: "  # noqa: F405
-            "configura un backend SMTP real (EMAIL_BACKEND, EMAIL_HOST, …) "
-            "o cambia a OTP_PROVIDER=supabase."
-        )
-elif OTP_PROVIDER == "supabase":  # noqa: F405
-    if not (SUPABASE_URL and SUPABASE_ANON_KEY):  # noqa: F405
-        raise ImproperlyConfigured(
-            "SUPABASE_URL y SUPABASE_ANON_KEY son obligatorias cuando OTP_PROVIDER=supabase."
-        )
-else:
-    raise ImproperlyConfigured(
-        f"OTP_PROVIDER='{OTP_PROVIDER}' no es válido. Usa 'local' o 'supabase'."  # noqa: F405
-    )
+try:
+    Fernet(TOTP_ENCRYPTION_KEY.encode())  # noqa: F405
+except (TypeError, ValueError) as exc:
+    raise ImproperlyConfigured("TOTP_ENCRYPTION_KEY debe ser una clave Fernet válida.") from exc
 
 # ---------------------------------------------------------------------------
 # Endurecimiento de transporte y cookies

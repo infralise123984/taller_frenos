@@ -7,10 +7,9 @@ from apps.accounts.services.invitaciones import (
     InvitacionService,
     build_invitacion_service,
 )
-from apps.accounts.services.throttling import Cooldown, RateLimiter
+from apps.accounts.services.throttling import RateLimiter
 
 __all__ = [
-    "Cooldown",
     "InvitacionEmitida",
     "InvitacionService",
     "LoginService",
