@@ -35,7 +35,7 @@ impresa** al cliente —con los datos del taller (dirección, ciudad y teléfono
 | Precios | Precio **manual por línea** (pesos chilenos, entero). El sistema calcula el total sumando las líneas. |
 | Código de freno | **Texto libre**: ella escribe el código y la marca del repuesto a mano. Sin catálogo de repuestos. |
 | Posición (delantero / trasero) | Va en el **detalle de texto libre** de la línea. No es un campo aparte. |
-| Lista del desplegable | Las **15 líneas del papel** del taller, más `Descuento` y `Otro` (ver §4.1). |
+| Lista del desplegable | Las **15 líneas del papel** del taller, más `Cilindros nuevos`, `Descuento` y `Otro` (ver §4.1). |
 | Ficha impresa | **Sí**: vista imprimible para entregar copia al cliente, **con los datos del taller** (dirección, ciudad, teléfono). |
 | Corrección posterior | **Sí**: poder editar una ficha guardada (agregar, borrar líneas, cambiar precios). |
 | Datos del taller | Se guardan en un **modelo editable desde el sistema** (admin de Django): **dirección, ciudad y teléfono**, sin re-desplegar. El nombre del taller va fijo en la plantilla. |
@@ -56,7 +56,7 @@ impresa** al cliente —con los datos del taller (dirección, ciudad y teléfono
 | Solo registrar | Editar una ficha guardada |
 | Solo pantalla | Ficha imprimible con formato del papel |
 | Los datos del taller (dirección, fono) solo existen en el papel | Modelo `DatosTaller` editables e impresos en la ficha |
-| `TipoTrabajo` (8 valores: cambio de pastillas, purga, revisión…) | Los 15 nombres exactos del papel |
+| `TipoTrabajo` (8 valores: cambio de pastillas, purga, revisión…) | Los 15 nombres del papel más `Cilindros nuevos` |
 
 > **Estado:** todo lo anterior está implementado en la rama
 > `feature/ficha-trabajo` (fases del §12). Este documento sigue siendo la regla
@@ -77,6 +77,7 @@ class TipoItemFicha(models.TextChoices):
     RECT_DISCO = "rect_disco", "Rect. Disco"
     PATINES = "patines", "Patines"
     RECT_TAMBORES = "rect_tambores", "Rect. Tambores"
+    CILINDROS_NUEVOS = "cilindros_nuevos", "Cilindros nuevos"
     GOMAS_CILINDROS = "gomas_cilindros", "Gomas Cilindros"
     LIQUIDO = "liquido", "Líquido"
     SEGURO_PASTILLAS = "seguro_pastillas", "Seguro Pastillas"
@@ -217,8 +218,8 @@ una línea → completar precio / detalle / código**.
 ```
 
 - Un desplegable "Agregar trabajo…" con el catálogo completo (§4.1: las 15 líneas
-  del papel más `Descuento` y `Otro`); al elegir una opción, se agrega una fila en
-  blanco con ese tipo. La primera fila parte ya visible.
+  del papel, más `Cilindros nuevos`, `Descuento` y `Otro`); al elegir una opción,
+  se agrega una fila en blanco con ese tipo. La primera fila parte ya visible.
 - El desplegable de cada fila **parte sin trabajo elegido** ("Elige un trabajo…"):
   la elección es consciente y no se cuela un "Pastillas" por defecto. Si la fila
   se deja entera en blanco, se ignora; si trae un precio y ningún trabajo, el

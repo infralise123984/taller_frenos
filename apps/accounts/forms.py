@@ -5,14 +5,10 @@ from __future__ import annotations
 from django import forms
 from django.contrib.auth.forms import SetPasswordForm
 
-# Los formularios usan widgets con clases de Tailwind y atributos de teclado
-# móvil, porque el sistema se usa principalmente desde tablet o teléfono.
+from apps.ui import INPUT, INPUT_CODIGO
 
-TEXT_INPUT_CLASSES = (
-    "w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-lg "
-    "text-slate-900 shadow-sm placeholder:text-slate-400 "
-    "focus:border-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-200"
-)
+# Los formularios usan las clases compartidas de :mod:`apps.ui` y atributos de
+# teclado móvil, porque el sistema se usa principalmente desde tablet o teléfono.
 
 
 class PasswordLoginForm(forms.Form):
@@ -22,7 +18,7 @@ class PasswordLoginForm(forms.Form):
         label="Correo electrónico",
         widget=forms.EmailInput(
             attrs={
-                "class": TEXT_INPUT_CLASSES,
+                "class": INPUT,
                 "placeholder": "taller@ejemplo.cl",
                 "autocomplete": "username",
                 "autofocus": True,
@@ -35,8 +31,7 @@ class PasswordLoginForm(forms.Form):
         strip=False,
         widget=forms.PasswordInput(
             attrs={
-                "class": f"{TEXT_INPUT_CLASSES} pr-12",
-                "placeholder": "••••••••",
+                "class": f"{INPUT} pr-12",
                 "autocomplete": "current-password",
             }
         ),
@@ -52,9 +47,7 @@ class TotpCodeForm(forms.Form):
         min_length=6,
         widget=forms.TextInput(
             attrs={
-                "class": (
-                    f"{TEXT_INPUT_CLASSES} text-center text-3xl tracking-[0.5em] font-semibold"
-                ),
+                "class": INPUT_CODIGO,
                 "placeholder": "000000",
                 "autocomplete": "one-time-code",
                 "inputmode": "numeric",
@@ -78,7 +71,7 @@ class TwoFactorPasswordForm(forms.Form):
         strip=False,
         widget=forms.PasswordInput(
             attrs={
-                "class": TEXT_INPUT_CLASSES,
+                "class": INPUT,
                 "autocomplete": "current-password",
             }
         ),
@@ -90,7 +83,7 @@ class TwoFactorPasswordForm(forms.Form):
         min_length=6,
         widget=forms.TextInput(
             attrs={
-                "class": f"{TEXT_INPUT_CLASSES} text-center tracking-[0.35em] font-semibold",
+                "class": f"{INPUT} text-center tracking-[0.35em] font-semibold",
                 "placeholder": "000000",
                 "autocomplete": "one-time-code",
                 "inputmode": "numeric",
@@ -117,7 +110,7 @@ class InvitacionForm(forms.Form):
         label="Correo de la persona a invitar",
         widget=forms.EmailInput(
             attrs={
-                "class": TEXT_INPUT_CLASSES,
+                "class": INPUT,
                 "placeholder": "mecanico@ejemplo.cl",
                 "autocomplete": "off",
                 "inputmode": "email",
@@ -154,7 +147,7 @@ class DefinirContrasenaForm(SetPasswordForm):
         self.fields["new_password2"].label = "Repite la contraseña"
 
         for campo in self.fields.values():
-            campo.widget.attrs["class"] = TEXT_INPUT_CLASSES
+            campo.widget.attrs["class"] = INPUT
             campo.widget.attrs["autocomplete"] = "new-password"
 
         self.fields["new_password1"].widget.attrs["autofocus"] = True

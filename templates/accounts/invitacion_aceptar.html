@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load ui %}
 
 {% block title %}Crea tu cuenta · Taller de Frenos{% endblock %}
 
@@ -10,16 +11,13 @@
   <div class="mb-6 text-center">
     <div class="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-sky-700 text-lg font-black text-white">TF</div>
     <h1 class="text-2xl font-bold text-slate-900">Crea tu cuenta</h1>
-    <p class="mt-1 text-sm text-slate-500">
+    <p class="mt-1 text-sm text-slate-600">
       Te invitaron como <strong class="text-slate-700">{{ invitacion.email }}</strong>
     </p>
   </div>
 
-  <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-    <h2 class="text-lg font-semibold text-slate-900">Elige tu contraseña</h2>
-    <p class="mb-5 mt-1 text-sm text-slate-500">
-      Si olvidas tu contraseña, contacta a la persona administradora para recuperar el acceso.
-    </p>
+  <div class="{% clase_tarjeta %} p-6">
+    <h2 class="mb-5 text-lg font-semibold text-slate-900">Elige tu contraseña</h2>
 
     <form method="post" novalidate>
       {% csrf_token %}
@@ -33,8 +31,7 @@
       {% include "partials/_field.html" with field=form.new_password1 %}
       {% include "partials/_field.html" with field=form.new_password2 %}
 
-      <button type="submit"
-              class="inline-flex w-full items-center justify-center rounded-xl bg-sky-700 px-6 py-4 text-lg font-semibold text-white shadow-sm transition hover:bg-sky-800 focus:outline-none focus:ring-2 focus:ring-sky-300 focus:ring-offset-2">
+      <button type="submit" class="{% clase_boton_primario %}">
         Crear mi cuenta
       </button>
     </form>

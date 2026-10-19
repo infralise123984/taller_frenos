@@ -286,7 +286,7 @@ class InvitacionesVistasTests(TestCase):
         self.assertEqual(respuesta.status_code, 200)
         self.assertContains(respuesta, "Crea tu cuenta")
         self.assertContains(respuesta, INVITADO)
-        self.assertContains(respuesta, "contacta a la persona administradora")
+        self.assertNotContains(respuesta, "contacta a la persona administradora")
         self.assertNotContains(respuesta, "código por correo")
 
     def test_aceptar_crea_la_cuenta_e_inicia_sesion(self) -> None:

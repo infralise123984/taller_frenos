@@ -1,8 +1,11 @@
 {% extends "base.html" %}
+{% load ui %}
 
 {% block title %}Ingresar · Taller de Frenos{% endblock %}
 
 {% block chrome %}{% endblock %}
+
+{% block messages %}{% endblock %}
 
 {% block content %}
 <div class="mx-auto w-full max-w-md py-6 sm:py-14">
@@ -10,36 +13,45 @@
   <div class="mb-6 text-center">
     <div class="mx-auto mb-3 grid h-14 w-14 place-items-center rounded-2xl bg-sky-700 text-lg font-black text-white">TF</div>
     <h1 class="text-2xl font-bold text-slate-900">Taller de Frenos</h1>
-    <p class="mt-1 text-sm text-slate-500">Acceso para personal autorizado</p>
+    <p class="mt-1 text-sm text-slate-600">Acceso para personal autorizado</p>
   </div>
 
-  <div class="rounded-2xl border border-slate-200 bg-white shadow-sm">
+  <div class="{% clase_tarjeta %}">
     <div class="p-6">
+      {% include "partials/_messages.html" %}
+
       {% if totp_required %}
         <h2 class="text-lg font-semibold text-slate-900">Verificación en dos pasos</h2>
-        <p class="mb-5 mt-1 text-sm text-slate-500">Ingresa el código de tu aplicación autenticadora.</p>
+        <p class="mb-5 mt-1 text-sm text-slate-600">
+          Paso 2 de 2: abre tu aplicación autenticadora y escribe el código de 6 dígitos
+          {% if totp_email %}de <span class="font-medium text-slate-900">{{ totp_email }}</span>{% endif %}.
+        </p>
 
-        <form method="post" novalidate>
+        <form method="post" novalidate data-pending="Verificando…">
           {% csrf_token %}
           <input type="hidden" name="action" value="verify_totp">
           {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
           {% include "partials/_field.html" with field=totp_form.code %}
-          <button type="submit" class="mt-4 inline-flex w-full items-center justify-center rounded-xl bg-sky-700 px-6 py-4 text-lg font-semibold text-white shadow-sm transition hover:bg-sky-800 focus:outline-none focus:ring-2 focus:ring-sky-300 focus:ring-offset-2">
+          <p class="mb-4 text-xs text-slate-600">
+            Tienes {{ totp_tiempo_restante }} para completar la verificación. Si se agota, el ingreso se reinicia.
+          </p>
+          <button type="submit" class="{% clase_boton_primario %}">
             Verificar código
           </button>
         </form>
-        <form method="post" class="mt-3 text-center">
+
+        <form method="post" class="mt-3">
           {% csrf_token %}
           <input type="hidden" name="action" value="cancel_totp">
-          <button type="submit" class="text-sm font-medium text-slate-600 underline hover:text-slate-900">
-            Cancelar e ingresar nuevamente
+          <button type="submit" class="{% clase_boton_secundario %} w-full">
+            Volver al ingreso con contraseña
           </button>
         </form>
       {% else %}
         <h2 class="text-lg font-semibold text-slate-900">Entrar con contraseña</h2>
-        <p class="mb-5 mt-1 text-sm text-slate-500">Usa el correo con el que fuiste registrado.</p>
+        <p class="mb-5 mt-1 text-sm text-slate-600">Usa el correo con el que fuiste registrado.</p>
 
-        <form method="post" novalidate>
+        <form method="post" novalidate data-pending="Entrando…">
           {% csrf_token %}
           {% if next %}<input type="hidden" name="next" value="{{ next }}">{% endif %}
           {% include "partials/_field.html" with field=password_form.email %}
@@ -51,31 +63,29 @@
             <div class="relative">
               {{ password_form.password }}
               <button type="button"
-                      class="absolute inset-y-0 right-3 flex items-center text-sm font-medium text-sky-700 hover:text-sky-900"
+                      class="absolute inset-y-1 right-1 flex h-11 w-11 items-center justify-center rounded-lg text-sm font-medium text-sky-700 transition hover:bg-sky-50 focus:outline-none focus:ring-2 focus:ring-sky-300 focus:ring-offset-1"
                       data-toggle-password="{{ password_form.password.id_for_label }}"
-                      aria-label="Mostrar contraseña">
+                      aria-controls="{{ password_form.password.id_for_label }}"
+                      aria-pressed="false"
+                      aria-label="Ver contraseña">
                 Ver
               </button>
             </div>
             {% if password_form.password.help_text %}
-              <p class="mt-1 text-xs text-slate-500">{{ password_form.password.help_text }}</p>
+              <p id="{{ password_form.password.auto_id }}_helptext" class="mt-1 text-xs text-slate-600">{{ password_form.password.help_text }}</p>
             {% endif %}
             {% for error in password_form.password.errors %}
-              <p class="mt-1 text-sm font-medium text-red-700">{{ error }}</p>
+              <p{% if forloop.first %} id="{{ password_form.password.auto_id }}_error"{% endif %} class="mt-1 text-sm font-medium text-red-700">{{ error }}</p>
             {% endfor %}
           </div>
 
-          <button type="submit" class="inline-flex w-full items-center justify-center rounded-xl bg-sky-700 px-6 py-4 text-lg font-semibold text-white shadow-sm transition hover:bg-sky-800 focus:outline-none focus:ring-2 focus:ring-sky-300 focus:ring-offset-2">
+          <button type="submit" class="{% clase_boton_primario %}">
             Entrar
           </button>
         </form>
       {% endif %}
     </div>
   </div>
-
-  {% if not totp_required %}<p class="mt-6 text-center text-xs text-slate-400">
-    Si olvidaste tu contraseña, contacta a la persona encargada del sistema.
-  </p>{% endif %}
 
 </div>
 {% endblock %}
@@ -91,8 +101,27 @@
         const visible = input.type === 'text';
         input.type = visible ? 'password' : 'text';
         button.textContent = visible ? 'Ver' : 'Ocultar';
-        button.setAttribute('aria-label', visible ? 'Mostrar contraseña' : 'Ocultar contraseña');
+        button.setAttribute('aria-pressed', visible ? 'false' : 'true');
+        button.setAttribute('aria-label', visible ? 'Ver contraseña' : 'Ocultar contraseña');
         input.focus();
+      });
+    });
+
+    // El campo con error recibe el foco: quien usa lector de pantalla oye el
+    // mensaje que ya está asociado a ese campo, sin tener que buscarlo.
+    const invalid = document.querySelector('[aria-invalid="true"]');
+    if (invalid && document.activeElement !== invalid) {
+      invalid.focus();
+    }
+
+    // Sin doble envío mientras viaja la respuesta. Los botones no llevan nombre
+    // ni valor, así que desactivarlos no quita datos del formulario.
+    document.querySelectorAll('form[data-pending]').forEach(function (form) {
+      form.addEventListener('submit', function () {
+        const button = form.querySelector('button[type=submit]');
+        if (!button) return;
+        button.disabled = true;
+        button.textContent = form.dataset.pending;
       });
     });
   });

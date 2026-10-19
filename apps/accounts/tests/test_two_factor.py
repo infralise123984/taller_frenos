@@ -73,6 +73,49 @@ class TwoFactorServiceTests(TestCase):
         with self.assertRaises(TwoFactorInvalidCodeError):
             self.service.verify_login_code(user=self.user, code=code, client_ip=CLIENT_IP)
 
+    def test_login_accepts_the_setup_window_once_and_rejects_older_windows(self) -> None:
+        self.user.totp_enabled = False
+        self.user.totp_secret_encrypted = ""
+        self.user.totp_last_verified_step = None
+        self.user.totp_setup_verified_step = None
+        self.user.save(
+            update_fields=[
+                "totp_enabled",
+                "totp_secret_encrypted",
+                "totp_last_verified_step",
+                "totp_setup_verified_step",
+            ]
+        )
+        self.service.begin_setup(user=self.user, password=PASSWORD, client_ip=CLIENT_IP)
+        pending_secret = self.service.pending_secret(user=self.user)
+        counter = int(time.time() // 30)
+        setup_code = _code_for_counter(pending_secret, counter)
+        self.service.enable(
+            user=self.user,
+            password=PASSWORD,
+            code=setup_code,
+            client_ip=CLIENT_IP,
+        )
+
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.totp_setup_verified_step, counter)
+        self.assertIsNone(self.user.totp_last_verified_step)
+
+        with self.assertRaises(TwoFactorInvalidCodeError):
+            self.service.verify_login_code(
+                user=self.user,
+                code=_code_for_counter(pending_secret, counter - 1),
+                client_ip=CLIENT_IP,
+            )
+
+        self.service.verify_login_code(user=self.user, code=setup_code, client_ip=CLIENT_IP)
+        self.user.refresh_from_db()
+        self.assertEqual(self.user.totp_last_verified_step, counter)
+        self.assertIsNone(self.user.totp_setup_verified_step)
+
+        with self.assertRaises(TwoFactorInvalidCodeError):
+            self.service.verify_login_code(user=self.user, code=setup_code, client_ip=CLIENT_IP)
+
     def test_locks_totp_verification_after_the_configured_failures(self) -> None:
         for _ in range(2):
             with self.assertRaises(TwoFactorInvalidCodeError):
@@ -140,6 +183,36 @@ class TwoFactorViewTests(TestCase):
         self.login_url = reverse("accounts:login")
         self.two_factor_url = reverse("accounts:two_factor")
 
+    def test_el_desafio_indica_el_paso_la_cuenta_y_el_tiempo_disponible(self) -> None:
+        self.user.totp_enabled = True
+        self.user.totp_secret_encrypted = encrypt_totp_secret("JBSWY3DPEHPK3PXP")
+        self.user.save(update_fields=["totp_enabled", "totp_secret_encrypted"])
+
+        respuesta = self.client.post(
+            self.login_url,
+            {"email": EMAIL, "password": PASSWORD},
+        )
+
+        self.assertContains(respuesta, "Verificación en dos pasos")
+        self.assertContains(respuesta, "Paso 2 de 2")
+        self.assertContains(respuesta, EMAIL)
+        self.assertContains(respuesta, "para completar la verificación")
+        self.assertContains(respuesta, "Volver al ingreso con contraseña")
+
+    def test_un_codigo_rechazado_limpia_el_campo(self) -> None:
+        self.user.totp_enabled = True
+        self.user.totp_secret_encrypted = encrypt_totp_secret("JBSWY3DPEHPK3PXP")
+        self.user.save(update_fields=["totp_enabled", "totp_secret_encrypted"])
+        self.client.post(self.login_url, {"email": EMAIL, "password": PASSWORD})
+
+        respuesta = self.client.post(
+            self.login_url,
+            {"action": "verify_totp", "code": "000000"},
+        )
+
+        self.assertContains(respuesta, "El código no es válido o ya fue utilizado.")
+        self.assertNotContains(respuesta, 'value="000000"')
+
     def test_setup_generates_private_qr_and_can_be_confirmed(self) -> None:
         self.client.force_login(self.user)
         response = self.client.post(
@@ -172,6 +245,28 @@ class TwoFactorViewTests(TestCase):
         self.assertRedirects(response, self.two_factor_url)
         self.user.refresh_from_db()
         self.assertTrue(self.user.totp_enabled)
+
+    def test_login_accepts_the_code_that_confirmed_the_setup(self) -> None:
+        self.client.force_login(self.user)
+        self.client.post(self.two_factor_url, {"action": "begin", "password": PASSWORD})
+        setup_page = self.client.get(self.two_factor_url)
+        secret = setup_page.context["pending_secret"]
+        counter = int(time.time() // 30)
+        code = _code_for_counter(secret, counter)
+        self.client.post(
+            self.two_factor_url,
+            {"action": "enable", "password": PASSWORD, "code": code},
+        )
+        self.user.refresh_from_db()
+        self.assertTrue(self.user.totp_enabled)
+        self.client.post(reverse("accounts:logout"))
+
+        response = self.client.post(self.login_url, {"email": EMAIL, "password": PASSWORD})
+        self.assertContains(response, "Verificación en dos pasos")
+
+        response = self.client.post(self.login_url, {"action": "verify_totp", "code": code})
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(int(self.client.session["_auth_user_id"]), self.user.pk)
 
     def test_login_requires_totp_before_creating_an_authenticated_session(self) -> None:
         secret = "JBSWY3DPEHPK3PXP"
@@ -240,12 +335,14 @@ class TwoFactorAdminRecoveryTests(TestCase):
         user.totp_secret_encrypted = encrypt_totp_secret("JBSWY3DPEHPK3PXP")
         user.totp_pending_secret_encrypted = encrypt_totp_secret("MZXW6YTBOI======")
         user.totp_last_verified_step = 123
+        user.totp_setup_verified_step = 123
         user.save(
             update_fields=[
                 "totp_enabled",
                 "totp_secret_encrypted",
                 "totp_pending_secret_encrypted",
                 "totp_last_verified_step",
+                "totp_setup_verified_step",
             ]
         )
         administrator = User.objects.create_user(
@@ -269,3 +366,4 @@ class TwoFactorAdminRecoveryTests(TestCase):
         self.assertEqual(user.totp_pending_secret_encrypted, "")
         self.assertIsNone(user.totp_pending_expires_at)
         self.assertIsNone(user.totp_last_verified_step)
+        self.assertIsNone(user.totp_setup_verified_step)

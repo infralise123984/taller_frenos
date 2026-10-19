@@ -158,13 +158,19 @@ class TwoFactorService:
             locked_user.totp_secret_encrypted = locked_user.totp_pending_secret_encrypted
             locked_user.totp_pending_secret_encrypted = ""
             locked_user.totp_pending_expires_at = None
-            locked_user.totp_last_verified_step = counter
+            # El código que confirma la configuración no se marca como consumido
+            # para el login: la misma ventana sigue vigente unos segundos y la
+            # persona la reutiliza al entrar. Solo se registra como piso mínimo
+            # para que el login no acepte una ventana anterior a la configurada.
+            locked_user.totp_setup_verified_step = counter
+            locked_user.totp_last_verified_step = None
             locked_user.totp_enabled = True
             locked_user.save(
                 update_fields=[
                     "totp_secret_encrypted",
                     "totp_pending_secret_encrypted",
                     "totp_pending_expires_at",
+                    "totp_setup_verified_step",
                     "totp_last_verified_step",
                     "totp_enabled",
                 ]
@@ -215,6 +221,7 @@ class TwoFactorService:
             locked_user.totp_pending_secret_encrypted = ""
             locked_user.totp_pending_expires_at = None
             locked_user.totp_last_verified_step = None
+            locked_user.totp_setup_verified_step = None
             locked_user.save(
                 update_fields=[
                     "totp_enabled",
@@ -222,6 +229,7 @@ class TwoFactorService:
                     "totp_pending_secret_encrypted",
                     "totp_pending_expires_at",
                     "totp_last_verified_step",
+                    "totp_setup_verified_step",
                 ]
             )
         self._clear_failures(user.email, client_ip)
@@ -246,12 +254,20 @@ class TwoFactorService:
             self._register_failure(email, client_ip)
             raise TwoFactorInvalidCodeError("El código no es válido.")
 
+        # Tras activar 2FA el paso de configuración actúa como piso: la ventana
+        # que lo confirmó todavía puede usarse una vez para entrar, pero una
+        # ventana anterior ya no es admisible.
+        setup_step = user.totp_setup_verified_step
+        if setup_step is not None and counter < setup_step:
+            self._register_failure(email, client_ip)
+            raise TwoFactorInvalidCodeError("El código no es válido o ya fue utilizado.")
+
         accepted = (
             User.objects.filter(pk=user.pk)
             .filter(
                 Q(totp_last_verified_step__lt=counter) | Q(totp_last_verified_step__isnull=True)
             )
-            .update(totp_last_verified_step=counter)
+            .update(totp_last_verified_step=counter, totp_setup_verified_step=None)
         )
         if accepted != 1:
             self._register_failure(email, client_ip)

@@ -27,6 +27,10 @@ __pycache__/
 staticfiles/
 media/
 
+# Contexto y resultados generados por Impeccable.
+.impeccable/
+PRODUCT.md
+
 # Editores
 .vscode/*
 !.vscode/settings.json

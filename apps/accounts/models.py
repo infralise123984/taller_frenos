@@ -77,6 +77,9 @@ class User(AbstractBaseUser, PermissionsMixin):
     totp_last_verified_step = models.BigIntegerField(
         "último código TOTP usado", null=True, blank=True
     )
+    totp_setup_verified_step = models.BigIntegerField(
+        "paso TOTP usado al activar", null=True, blank=True
+    )
     objects = UserManager()
 
     USERNAME_FIELD = "email"

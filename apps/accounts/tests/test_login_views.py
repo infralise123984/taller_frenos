@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import re
+
 from django.core.cache import cache
-from django.test import TestCase
+from django.test import TestCase, override_settings
 from django.urls import reverse
 
 from apps.accounts.models import User
@@ -21,6 +23,7 @@ class AccesoRequeridoTests(TestCase):
         self.assertEqual(respuesta.status_code, 200)
         self.assertContains(respuesta, "Entrar con contraseña")
         self.assertNotContains(respuesta, "Código por correo")
+        self.assertNotContains(respuesta, "avisa a la persona encargada")
 
     def test_el_acceso_con_codigo_ya_no_existe(self) -> None:
         respuesta = self.client.get("/cuenta/ingresar/codigo/")
@@ -91,6 +94,51 @@ class AccesoConContrasenaTests(TestCase):
         respuesta = self.client.get(self.url)
 
         self.assertRedirects(respuesta, reverse("workshop:buscar"))
+
+
+class ErroresDelIngresoTests(TestCase):
+    """Los errores de campo deben quedar asociados al campo que los produjo."""
+
+    def setUp(self) -> None:
+        cache.clear()
+        self.url = reverse("accounts:login")
+
+    def test_los_errores_de_campo_apuntan_a_un_id_que_existe(self) -> None:
+        respuesta = self.client.post(self.url, {"email": "", "password": ""})
+        html = respuesta.content.decode()
+
+        referenciados = re.findall(r'aria-describedby="([^"]+)"', html)
+        disponibles = set(re.findall(r'id="([^"]+)"', html))
+
+        self.assertTrue(referenciados, "el formulario debería describir sus errores")
+        for referencia in referenciados:
+            for destino in referencia.split():
+                self.assertIn(destino, disponibles)
+
+    def test_los_errores_de_campo_se_muestran_junto_al_campo(self) -> None:
+        respuesta = self.client.post(self.url, {"email": "", "password": ""})
+
+        self.assertContains(respuesta, "Este campo es obligatorio.")
+        self.assertContains(respuesta, 'id="id_email_error"')
+
+
+@override_settings(LOGIN_MAX_FAILED_ATTEMPTS=1, LOGIN_LOCKOUT_SECONDS=900)
+class BloqueoDelIngresoTests(TestCase):
+    def setUp(self) -> None:
+        cache.clear()
+        self.user = User.objects.create_user(email=EMAIL, password=CLAVE)
+        self.url = reverse("accounts:login")
+
+    def test_el_bloqueo_indica_la_hora_en_que_se_puede_volver(self) -> None:
+        self.client.post(self.url, {"email": EMAIL, "password": "incorrecta"})
+        respuesta = self.client.post(self.url, {"email": EMAIL, "password": "incorrecta"})
+
+        self.assertContains(respuesta, "Bloqueamos el acceso por demasiados intentos fallidos")
+        self.assertRegex(
+            respuesta.content.decode(),
+            r"Podrás intentarlo de nuevo a las \d{2}:\d{2}",
+        )
+        self.assertNotContains(respuesta, "minuto(s)")
 
 
 class CierreDeSesionTests(TestCase):

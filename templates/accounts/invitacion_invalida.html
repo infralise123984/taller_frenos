@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load ui %}
 
 {% block title %}Enlace no válido · Taller de Frenos{% endblock %}
 
@@ -7,7 +8,7 @@
 {% block content %}
 <div class="mx-auto w-full max-w-md py-6 sm:py-14">
 
-  <div class="rounded-2xl border border-slate-200 bg-white p-6 text-center shadow-sm">
+  <div class="{% clase_tarjeta %} p-6 text-center">
     <div class="mx-auto mb-4 grid h-12 w-12 place-items-center rounded-2xl bg-amber-100 text-2xl">!</div>
 
     <h1 class="text-xl font-bold text-slate-900">Este enlace ya no sirve</h1>
@@ -22,7 +23,7 @@
     </p>
 
     <a href="{% url 'accounts:login' %}"
-       class="mt-6 inline-flex items-center justify-center rounded-xl bg-sky-700 px-6 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-sky-800">
+       class="{% clase_boton_primario %} mt-6">
       Ir al ingreso
     </a>
   </div>

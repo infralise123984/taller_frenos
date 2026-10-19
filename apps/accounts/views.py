@@ -8,6 +8,7 @@ de dominio y crean o destruyen la sesión. No contienen reglas de negocio.
 from __future__ import annotations
 
 import logging
+from datetime import timedelta
 from io import BytesIO
 
 import qrcode
@@ -64,10 +65,51 @@ TWO_FACTOR_TEMPLATE = "accounts/two_factor.html"
 
 
 def _format_wait(seconds: int) -> str:
-    """Traduce segundos a un texto humano breve."""
+    """Traduce segundos a un texto humano breve, sin plurales mecánicos."""
+    seconds = max(1, seconds)
+    if seconds >= 120:
+        return f"{round(seconds / 60)} minutos"
     if seconds >= 60:
-        return f"{seconds // 60} minuto(s)"
-    return f"{max(1, seconds)} segundo(s)"
+        return "1 minuto"
+    if seconds == 1:
+        return "1 segundo"
+    return f"{seconds} segundos"
+
+
+def _unlock_time(seconds: int) -> str:
+    """Hora del reloj en que el bloqueo deja de aplicar."""
+    unlock_at = timezone.localtime() + timedelta(seconds=max(1, seconds))
+    return f"{unlock_at:%H:%M}"
+
+
+def _lockout_message(seconds: int) -> str:
+    """
+    Explica el bloqueo: qué pasó y cuándo vuelve a estar disponible.
+
+    La hora absoluta importa más que el conteo: quien tiene un cliente esperando
+    en el mesón necesita saber si alcanza a volver antes.
+    """
+    return (
+        "Bloqueamos el acceso por demasiados intentos fallidos. "
+        f"Podrás intentarlo de nuevo a las {_unlock_time(seconds)}, "
+        f"en {_format_wait(seconds)}."
+    )
+
+
+def _preauth_seconds_left(request: HttpRequest) -> int:
+    """Segundos que le quedan al desafío de dos pasos antes de expirar."""
+    started_at = request.session.get(PREAUTH_STARTED_SESSION_KEY)
+    if not isinstance(started_at, (int, float)):
+        return 0
+    elapsed = timezone.now().timestamp() - started_at
+    return max(0, int(PREAUTH_SESSION_SECONDS - elapsed))
+
+
+def _login_context(request: HttpRequest, **extra: object) -> dict[str, object]:
+    """Contexto común de las pantallas de ingreso."""
+    context: dict[str, object] = {"next": _resolve_redirect(request, "")}
+    context.update(extra)
+    return context
 
 
 def _resolve_redirect(request: HttpRequest, fallback: str) -> str:
@@ -114,11 +156,7 @@ def login_password(request: HttpRequest) -> HttpResponse:
                 client_ip=get_client_ip(request),
             )
         except AccountLockedError as exc:
-            messages.error(
-                request,
-                f"Demasiados intentos fallidos. Intenta nuevamente en "
-                f"{_format_wait(exc.retry_after_seconds)}.",
-            )
+            messages.error(request, _lockout_message(exc.retry_after_seconds))
         except InvalidCredentialsError:
             messages.error(request, GENERIC_CREDENTIALS_ERROR)
         except AuthenticationDomainError:
@@ -131,17 +169,14 @@ def login_password(request: HttpRequest) -> HttpResponse:
                 request.session[PREAUTH_USER_SESSION_KEY] = user.pk
                 request.session[PREAUTH_STARTED_SESSION_KEY] = timezone.now().timestamp()
                 request.session.set_expiry(PREAUTH_SESSION_SECONDS)
-                return _render_totp_login(request)
+                return _render_totp_login(request, user=user)
             auth_login(request, user)
             return redirect(_resolve_redirect(request, reverse("workshop:buscar")))
 
     return render(
         request,
         LOGIN_TEMPLATE,
-        {
-            "password_form": form,
-            "next": _resolve_redirect(request, ""),
-        },
+        _login_context(request, password_form=form),
     )
 
 
@@ -165,16 +200,25 @@ def _clear_two_factor_login(request: HttpRequest) -> None:
     request.session.pop(PREAUTH_STARTED_SESSION_KEY, None)
 
 
-def _render_totp_login(request: HttpRequest, *, form: TotpCodeForm | None = None) -> HttpResponse:
+def _render_totp_login(
+    request: HttpRequest,
+    *,
+    form: TotpCodeForm | None = None,
+    user: User | None = None,
+) -> HttpResponse:
+    """Muestra el desafío de dos pasos, con la cuenta y el tiempo por delante."""
+    pending_user = user or _pending_two_factor_user(request)
     return render(
         request,
         LOGIN_TEMPLATE,
-        {
-            "password_form": PasswordLoginForm(),
-            "totp_required": True,
-            "totp_form": form or TotpCodeForm(),
-            "next": _resolve_redirect(request, ""),
-        },
+        _login_context(
+            request,
+            password_form=PasswordLoginForm(),
+            totp_required=True,
+            totp_form=form or TotpCodeForm(),
+            totp_email=pending_user.email if pending_user else "",
+            totp_tiempo_restante=_format_wait(_preauth_seconds_left(request)),
+        ),
     )
 
 
@@ -189,7 +233,7 @@ def _handle_totp_login(request: HttpRequest) -> HttpResponse:
 
     form = TotpCodeForm(request.POST)
     if not form.is_valid():
-        return _render_totp_login(request, form=form)
+        return _render_totp_login(request, form=form, user=user)
 
     try:
         build_two_factor_service().verify_login_code(
@@ -198,14 +242,11 @@ def _handle_totp_login(request: HttpRequest) -> HttpResponse:
             client_ip=get_client_ip(request),
         )
     except AccountLockedError as exc:
-        messages.error(
-            request,
-            f"Demasiados intentos. Intenta nuevamente en {_format_wait(exc.retry_after_seconds)}.",
-        )
-        return _render_totp_login(request, form=form)
+        messages.error(request, _lockout_message(exc.retry_after_seconds))
+        return _render_totp_login(request, user=user)
     except TwoFactorInvalidCodeError:
         messages.error(request, "El código no es válido o ya fue utilizado.")
-        return _render_totp_login(request, form=form)
+        return _render_totp_login(request, user=user)
     except TwoFactorStateError:
         _clear_two_factor_login(request)
         messages.error(request, "La configuración de dos pasos cambió. Ingresa nuevamente.")
@@ -250,7 +291,9 @@ def two_factor_settings(request: HttpRequest) -> HttpResponse:
                 except AccountLockedError as exc:
                     messages.error(
                         request,
-                        f"Demasiados intentos. Espera {_format_wait(exc.retry_after_seconds)}.",
+                        "Demasiados intentos. Vuelve a intentarlo a las "
+                        f"{_unlock_time(exc.retry_after_seconds)}, "
+                        f"en {_format_wait(exc.retry_after_seconds)}.",
                     )
                 except InvalidCredentialsError:
                     form.add_error("password", "La contraseña actual no es correcta.")
@@ -271,7 +314,9 @@ def two_factor_settings(request: HttpRequest) -> HttpResponse:
             except AccountLockedError as exc:
                 messages.error(
                     request,
-                    f"Demasiados intentos. Espera {_format_wait(exc.retry_after_seconds)}.",
+                    "Demasiados intentos. Vuelve a intentarlo a las "
+                    f"{_unlock_time(exc.retry_after_seconds)}, "
+                    f"en {_format_wait(exc.retry_after_seconds)}.",
                 )
             except InvalidCredentialsError:
                 form.add_error("password", "La contraseña actual no es correcta.")

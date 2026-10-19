@@ -66,6 +66,7 @@ class UserAdmin(BaseUserAdmin):
             totp_pending_secret_encrypted="",
             totp_pending_expires_at=None,
             totp_last_verified_step=None,
+            totp_setup_verified_step=None,
         )
         logger.warning(
             "Administración restableció 2FA tras verificación de identidad; admin=%s usuarios=%s",

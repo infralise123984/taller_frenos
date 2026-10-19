@@ -12,10 +12,10 @@
   {{ field }}
 
   {% if field.help_text %}
-    <p class="mt-1 text-xs text-slate-500">{{ field.help_text }}</p>
+    <p id="{{ field.auto_id }}_helptext" class="mt-1 text-xs text-slate-600">{{ field.help_text }}</p>
   {% endif %}
 
   {% for error in field.errors %}
-    <p class="mt-1 text-sm font-medium text-red-700">{{ error }}</p>
+    <p{% if forloop.first %} id="{{ field.auto_id }}_error"{% endif %} class="mt-1 text-sm font-medium text-red-700">{{ error }}</p>
   {% endfor %}
 </div>

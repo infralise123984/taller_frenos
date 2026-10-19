@@ -8,16 +8,32 @@ veces desde una tablet o un teléfono.
 
 from __future__ import annotations
 
+
+def _campo(*, redondeo: str, relleno: str, tamano: str) -> str:
+    """
+    Arma la clase de un campo de formulario a partir de sus tres diferencias.
+
+    El tamaño del texto va al final y nunca se repite: si dos clases de tamaño
+    conviven en el mismo atributo, gana la que esté después en el CSS compilado
+    y el tamaño pedido se pierde en silencio.
+    """
+    return (
+        f"w-full {redondeo} border border-slate-300 bg-white {relleno} {tamano} "
+        "text-slate-900 caret-sky-700 shadow-sm placeholder:text-slate-500 "
+        "selection:bg-sky-100 selection:text-sky-900 "
+        "focus:border-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-200"
+    )
+
+
 # Campos de formulario
-INPUT = (
-    "w-full rounded-xl border border-slate-300 bg-white px-4 py-3 text-lg "
-    "text-slate-900 shadow-sm placeholder:text-slate-400 "
-    "focus:border-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-200"
-)
-INPUT_COMPACTO = (
-    "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-base "
-    "text-slate-900 shadow-sm placeholder:text-slate-400 "
-    "focus:border-sky-600 focus:outline-none focus:ring-2 focus:ring-sky-200"
+INPUT = _campo(redondeo="rounded-xl", relleno="px-4 py-3", tamano="text-lg")
+INPUT_COMPACTO = _campo(redondeo="rounded-lg", relleno="px-3 py-2", tamano="text-base")
+# Código de seis dígitos de la aplicación autenticadora: grande y espaciado,
+# para leerlo de un vistazo en el mesón.
+INPUT_CODIGO = _campo(
+    redondeo="rounded-xl",
+    relleno="px-4 py-3",
+    tamano="text-center text-3xl font-semibold tracking-[0.4em]",
 )
 SELECT = f"{INPUT} appearance-none bg-white pr-10"
 TEXTAREA = f"{INPUT} min-h-28 resize-y"

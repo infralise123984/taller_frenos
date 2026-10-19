@@ -1,11 +1,12 @@
 {% extends "base.html" %}
+{% load ui %}
 
 {% block title %}Cuentas · Taller de Frenos{% endblock %}
 
 {% block content %}
 
   <h1 class="mb-1 text-2xl font-bold text-slate-900">Cuentas del taller</h1>
-  <p class="mb-6 text-sm text-slate-500">
+  <p class="mb-6 text-sm text-slate-600">
     El sistema no tiene registro abierto: para dar acceso a alguien, invítalo desde aquí.
   </p>
 
@@ -44,8 +45,8 @@
   {% endif %}
 
   {# ------------------------------ Invitar ------------------------------- #}
-  <section class="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-    <h2 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">
+  <section class="mb-6 {% clase_tarjeta %} p-5 sm:p-6">
+    <h2 class="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-600">
       Invitar a una persona
     </h2>
 
@@ -53,8 +54,7 @@
       {% csrf_token %}
       {% include "partials/_field.html" with field=form.email %}
 
-      <button type="submit"
-              class="inline-flex items-center justify-center rounded-xl bg-sky-700 px-6 py-4 text-lg font-semibold text-white shadow-sm transition hover:bg-sky-800 focus:outline-none focus:ring-2 focus:ring-sky-300 focus:ring-offset-2">
+      <button type="submit" class="{% clase_boton_primario %} sm:w-auto sm:px-8">
         Generar invitación
       </button>
     </form>
@@ -62,19 +62,19 @@
 
   {# --------------------------- Pendientes ------------------------------ #}
   <section>
-    <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+    <h2 class="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-600">
       Invitaciones pendientes
     </h2>
 
     {% if pendientes %}
       <ul class="space-y-3">
         {% for invitacion in pendientes %}
-          <li class="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+          <li class="{% clase_tarjeta %} px-5 py-4">
             <div class="flex flex-wrap items-baseline justify-between gap-2">
               <p class="font-medium text-slate-900">{{ invitacion.email }}</p>
               <p class="text-sm text-slate-500">vence el {{ invitacion.expires_at|date:"d-m-Y" }}</p>
             </div>
-            <p class="mt-1 text-xs text-slate-400">
+            <p class="mt-1 text-xs text-slate-500">
               Invitada por {{ invitacion.invited_by.get_full_name }} el
               {{ invitacion.created_at|date:"d-m-Y" }}
             </p>
@@ -82,12 +82,12 @@
         {% endfor %}
       </ul>
     {% else %}
-      <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center text-slate-500">
+      <div class="rounded-2xl border border-dashed border-slate-300 bg-white p-6 text-center text-slate-600">
         No hay invitaciones pendientes.
       </div>
     {% endif %}
 
-    <p class="mt-4 text-xs text-slate-400">
+    <p class="mt-4 text-xs text-slate-600">
       Las cuentas nuevas entran como usuarias normales, sin acceso al panel de administración.
     </p>
   </section>

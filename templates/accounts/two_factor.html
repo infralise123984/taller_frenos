@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% load ui %}
 
 {% block title %}Seguridad de la cuenta · Taller de Frenos{% endblock %}
 
@@ -9,7 +10,7 @@
     <p class="mt-1 text-sm text-slate-600">Autenticación en dos pasos con una aplicación TOTP.</p>
   </div>
 
-  <div class="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+  <div class="{% clase_tarjeta %} p-6">
     {% if user.totp_enabled %}
       <div class="mb-6 rounded-xl bg-emerald-50 p-4 text-sm text-emerald-900">
         La autenticación en dos pasos está activa para tu cuenta.
@@ -20,7 +21,7 @@
         <input type="hidden" name="action" value="disable">
         {% include "partials/_field.html" with field=form.password %}
         <div class="mt-4">{% include "partials/_field.html" with field=form.code %}</div>
-        <button type="submit" class="mt-5 inline-flex w-full items-center justify-center rounded-xl border border-red-300 px-5 py-3 font-semibold text-red-700 hover:bg-red-50">
+        <button type="submit" class="{% clase_boton_peligro %} mt-5 w-full">
           Desactivar autenticación en dos pasos
         </button>
       </form>
@@ -39,9 +40,9 @@
         <input type="hidden" name="action" value="enable">
         {% include "partials/_field.html" with field=form.password %}
         <div class="mt-4">{% include "partials/_field.html" with field=form.code %}
-          <p class="mt-1 text-xs text-slate-500">La contraseña y el código deben ser correctos para activar 2FA.</p>
+          <p class="mt-1 text-xs text-slate-600">La contraseña y el código deben ser correctos para activar 2FA.</p>
         </div>
-        <button type="submit" class="mt-5 inline-flex w-full items-center justify-center rounded-xl bg-sky-700 px-5 py-3 font-semibold text-white hover:bg-sky-800">
+        <button type="submit" class="{% clase_boton_primario %} mt-5">
           Confirmar y activar
         </button>
       </form>
@@ -54,7 +55,7 @@
         {% csrf_token %}
         <input type="hidden" name="action" value="begin">
         {% include "partials/_field.html" with field=form.password %}
-        <button type="submit" class="mt-5 inline-flex w-full items-center justify-center rounded-xl bg-sky-700 px-5 py-3 font-semibold text-white hover:bg-sky-800">
+        <button type="submit" class="{% clase_boton_primario %} mt-5">
           Preparar configuración
         </button>
       </form>

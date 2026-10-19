@@ -110,11 +110,17 @@ El login limita intentos fallidos por correo e IP:
 `LOGIN_MAX_FAILED_ATTEMPTS` (5 por defecto) bloquea temporalmente durante
 `LOGIN_LOCKOUT_SECONDS` (15 minutos). El desafío TOTP y las operaciones de
 activación/desactivación comparten ese límite. Los contadores se guardan en la
-caché configurada.
+caché configurada. Al quedar bloqueado, la pantalla dice la hora exacta en que
+se puede volver a intentar, porque no hay recuperación automática de contraseña.
 
 Cada usuario puede activar 2FA desde **Seguridad** escaneando un QR con una
 aplicación autenticadora. Para iniciar o terminar la configuración se pide la
-contraseña actual y un código vigente. La semilla se cifra en la base de datos
+contraseña actual y un código vigente. El código que confirma la activación no
+se marca como consumido para el login: como sigue vigente unos segundos, la
+persona puede usarlo para entrar una vez; a partir de ese primer ingreso rige el
+bloqueo por reutilización. El desafío de dos pasos indica el paso, la cuenta que
+se está verificando y el tiempo de vida que le queda, y ofrece volver al ingreso
+con contraseña. La semilla se cifra en la base de datos
 con `TOTP_ENCRYPTION_KEY`; producción no arranca sin una clave Fernet válida.
 Genera una clave con `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"`
 y guárdala como secreto en el entorno de despliegue. Debe mantenerse estable y
