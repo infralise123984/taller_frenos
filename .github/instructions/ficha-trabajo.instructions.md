@@ -236,6 +236,11 @@ una línea → completar precio / detalle / código**.
   aparece un "Deshacer" bajo las líneas que devuelve las filas quitadas mientras
   no se haya guardado todavía.
 - El total se muestra abajo y se recalcula al escribir un precio.
+- **La rueda del ratón no cambia los precios**: si un campo numérico tiene el
+  foco, el primer giro de la rueda lo suelta (conservando lo escrito) y el resto
+  del giro scrollea la ficha. Sin foco, la rueda scrollea y no toca el valor.
+  Vale para el precio de cada línea y para los kilómetros de la próxima
+  mantención.
 - Permitir la **misma línea repetida** (dos cambios de pastillas en el mismo auto).
 - Sin JavaScript la ficha sigue funcionando: el formset se envía completo y el
   servidor recalcula todo (§7).
@@ -259,9 +264,11 @@ una línea → completar precio / detalle / código**.
   observaciones), compartido por el ingreso y por la corrección.
 - `static/js/ficha.js` (vanilla, sin build step, cargado con `{% block scripts %}`)
   clona el `<template>` de la fila, actualiza `TOTAL_FORMS` y recalcula el total.
-  También atiende el botón "Quitar línea". El proyecto no tiene bundler; el
-  archivo debe existir antes del `collectstatic` de Render o el manifiesto de
-  estáticos falla.
+  También atiende el botón "Quitar línea" y neutraliza la rueda del ratón sobre
+  los `input[type="number"]` (escucha `wheel` en el documento con
+  `{ passive: false }` para poder soltar el campo con `blur()`). El proyecto no
+  tiene bundler; el archivo debe existir antes del `collectstatic` de Render o el
+  manifiesto de estáticos falla.
 - `BaseLineaFichaFormSet.add_fields` marca la casilla `DELETE` con `tabindex="-1"`
   (constante `DELETION_FIELD_NAME`) para que no reciba el foco; su ocultamiento
   visual lo hace `.campo-borrar` en `static/css/app.css`, no Tailwind, para que no

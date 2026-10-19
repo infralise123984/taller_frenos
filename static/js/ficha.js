@@ -151,6 +151,21 @@
     }
   });
 
+  // La rueda del ratón sobre un campo numérico cambia el monto sin querer
+  // cuando se recorre la ficha. Al primer giro se suelta el campo: el valor
+  // escrito queda intacto y, desde el giro siguiente, la página scrollea.
+  function soltarCampoNumericoAlGirarRueda(evento) {
+    var campo = evento.target;
+    if (!campo || campo.type !== "number" || document.activeElement !== campo) {
+      return;
+    }
+
+    evento.preventDefault();
+    campo.blur();
+  }
+
+  document.addEventListener("wheel", soltarCampoNumericoAlGirarRueda, { passive: false });
+
   contenedor.addEventListener("input", actualizarTotal);
   contenedor.addEventListener("change", actualizarTotal);
 
