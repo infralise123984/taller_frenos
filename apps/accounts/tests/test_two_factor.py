@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 
+from django.conf import settings
 from django.contrib.admin import AdminSite
 from django.contrib.messages.storage.fallback import FallbackStorage
 from django.core.cache import cache
@@ -193,6 +194,28 @@ class TwoFactorViewTests(TestCase):
         )
         self.assertRedirects(response, "/taller/")
         self.assertEqual(int(self.client.session["_auth_user_id"]), self.user.pk)
+
+    @override_settings(SESSION_COOKIE_AGE=3600)
+    def test_sesion_autenticada_recupera_duracion_normal_tras_desafio_totp(self) -> None:
+        secret = "JBSWY3DPEHPK3PXP"
+        self.user.totp_enabled = True
+        self.user.totp_secret_encrypted = encrypt_totp_secret(secret)
+        self.user.save(update_fields=["totp_enabled", "totp_secret_encrypted"])
+
+        self.client.post(self.login_url, {"email": EMAIL, "password": PASSWORD})
+        self.assertEqual(self.client.session.get_expiry_age(), 300)
+
+        response = self.client.post(
+            self.login_url,
+            {
+                "action": "verify_totp",
+                "code": _code_for_counter(secret, int(time.time() // 30)),
+            },
+        )
+
+        self.assertEqual(response.status_code, 302)
+        self.assertEqual(self.client.session.get_expiry_age(), 3600)
+        self.assertEqual(response.cookies[settings.SESSION_COOKIE_NAME]["max-age"], 3600)
 
     def test_totp_challenge_expires_after_five_minutes(self) -> None:
         session = self.client.session

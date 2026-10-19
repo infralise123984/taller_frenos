@@ -213,6 +213,7 @@ def _handle_totp_login(request: HttpRequest) -> HttpResponse:
 
     _clear_two_factor_login(request)
     auth_login(request, user)
+    request.session.set_expiry(None)
     return redirect(_resolve_redirect(request, reverse("workshop:buscar")))
 
 
