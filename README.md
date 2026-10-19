@@ -4,7 +4,7 @@
 ![Django 5.2](https://img.shields.io/badge/Django-5.2-092E20?logo=django&logoColor=white)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)
 ![Tailwind CSS 3.4](https://img.shields.io/badge/Tailwind-3.4-06B6D4?logo=tailwindcss&logoColor=white)
-[![CI](https://github.com/infralise123984/el_banano/actions/workflows/ci.yml/badge.svg)](https://github.com/infralise123984/el_banano/actions/workflows/ci.yml)
+[![CI](https://github.com/infralise123984/taller_frenos/actions/workflows/ci.yml/badge.svg)](https://github.com/infralise123984/taller_frenos/actions/workflows/ci.yml)
 ![Licencia: todos los derechos reservados](https://img.shields.io/badge/licencia-todos%20los%20derechos%20reservados-lightgrey)
 
 Sistema de gestión para un taller mecánico independiente especializado en frenos.
