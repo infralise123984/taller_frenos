@@ -1,12 +1,77 @@
-# Sistema para Taller de Frenos
+# Taller de Frenos
 
-Libreta digital para un taller de frenos: el eje es la **patente del vehículo**,
-desde la cual se llega al dueño y a todo su historial de mantenciones.
+![Python 3.13](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
+![Django 5.2](https://img.shields.io/badge/Django-5.2-092E20?logo=django&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql&logoColor=white)
+![Tailwind CSS 3.4](https://img.shields.io/badge/Tailwind-3.4-06B6D4?logo=tailwindcss&logoColor=white)
+[![CI](https://github.com/infralise123984/el_banano/actions/workflows/ci.yml/badge.svg)](https://github.com/infralise123984/el_banano/actions/workflows/ci.yml)
+![Licencia: todos los derechos reservados](https://img.shields.io/badge/licencia-todos%20los%20derechos%20reservados-lightgrey)
 
-El alcance y el contexto funcional están en `PROJECT_CONTEXT.md`.
+Sistema de gestión para un taller mecánico independiente especializado en frenos.
+Reemplaza la libreta de papel por una ficha digital cuyo eje es la **patente del
+vehículo**: desde ahí se llega al dueño, a su historial de mantenciones y a la
+ficha que se imprime y se entrega al cliente.
 
-> **Estado actual:** sistema operativo para registrar ingresos, consultar el
-> historial por patente, corregir fichas e imprimirlas.
+Es un proyecto real, pensado para el mesón de atención: registro rápido,
+búsqueda instantánea por patente y una interfaz usable de pie en teléfono,
+tablet o escritorio.
+
+> **Estado:** operativo. Registra ingresos, consulta el historial por patente,
+> corrige fichas, las imprime y administra cuentas con invitación y 2FA.
+
+El alcance funcional y el contexto del negocio están en
+[`PROJECT_CONTEXT.md`](PROJECT_CONTEXT.md).
+
+---
+
+## El problema
+
+En un taller pequeño la información vive en cuadernos y hojas de papel. Eso
+genera tres problemas cotidianos:
+
+- **Buscar es lento.** Cuando el cliente vuelve, hay que revisar cuadernos
+  viejos para saber qué se le hizo, con qué repuestos y cuándo.
+- **No hay trazabilidad.** Es difícil saber si un trabajo aún tiene garantía o
+  si al vehículo le corresponde una mantención preventiva.
+- **El papel se pierde.** Se deteriora con grasa, se moja con líquido de frenos
+  y no tiene respaldo.
+
+El sistema resuelve eso con una libreta digital centrada en la patente, sin
+convertirse en un ERP ni en un sistema de facturación.
+
+---
+
+## Funcionalidades
+
+| Área | Qué hace |
+| --- | --- |
+| Búsqueda por patente | Encuentra al vehículo, su dueño y su historial en segundos. Mientras se escribe, avisa si el auto ya vino y muestra la última visita. |
+| Historial | Cada visita queda ordenada cronológicamente con trabajos, repuestos, kilometraje y la recomendación de próxima mantención. |
+| Clientes | Un cliente puede tener varios vehículos. Patente y teléfono se normalizan para evitar fichas duplicadas. |
+| Registro de ingresos | Alta rápida de patente, marca, dueño y orden de trabajo en una sola pasada. |
+| Ficha de trabajo | Líneas tipificadas con precio, código y marca del repuesto; descuento como línea negativa; total calculado en el servidor. |
+| Corrección e impresión | Las fichas guardadas se pueden editar y se imprimen con los datos del taller. |
+| Acceso interno | Sin registro público: invitaciones de un solo uso, login por correo, límite de intentos y 2FA TOTP opcional. |
+| PWA | Instalable desde el navegador; guarda solo recursos estáticos y nunca datos del taller. |
+
+---
+
+## Stack
+
+| Capa | Tecnología |
+| --- | --- |
+| Lenguaje | Python 3.13 |
+| Backend | Django 5.2 (vistas, formularios y plantillas del lado del servidor) |
+| Base de datos | PostgreSQL en producción; SQLite en desarrollo |
+| Frontend | Plantillas Django, Tailwind CSS 3.4 compilado y JavaScript sin framework |
+| Seguridad | Argon2 para contraseñas, Fernet para semillas TOTP, limitadores de tasa por correo e IP |
+| Servidor | Gunicorn + WhiteNoise |
+| Calidad | Ruff (lint y formato) y suite de pruebas de Django |
+| CI | GitHub Actions (lint, formato, CSS compilado y pruebas) |
+
+La lógica de negocio vive en servicios y selectores; las vistas solo traducen
+HTTP. El detalle está en [Decisiones de arquitectura](#decisiones-de-arquitectura)
+y [Estructura](#estructura).
 
 ---
 
@@ -393,7 +458,7 @@ de `config/settings/dev.py` bastan para probar.
 
 ---
 
-## Decisiones abiertas para la entrevista
+## Preguntas abiertas y próximos pasos
 
 1. **Próxima mantención:** hoy la ficha muestra la recomendación de la *última*
    visita. ¿Conviene mostrar la última recomendación registrada, aunque
@@ -408,11 +473,34 @@ de `config/settings/dev.py` bastan para probar.
    presupuesto. Falta decidir si la ficha necesita un estado (presupuesto /
    pagada) y si eso cambia la copia impresa. Pendiente de conversar con la
    encargada.
-4. **Roles:** hoy hay usuarios habilitados o deshabilitados a secas. ¿Se
+5. **Roles:** hoy hay usuarios habilitados o deshabilitados a secas. ¿Se
    requiere distinguir entre recepción y mecánico?
-5. **Ubicación del local:** ¿el sistema correrá en un servidor con dominio
+6. **Ubicación del local:** ¿el sistema correrá en un servidor con dominio
    propio, o conviene empaquetarlo para uso en la red local del taller?
-6. **Respaldo:** con la información en papel no había respaldo. Conviene
+7. **Respaldo:** con la información en papel no había respaldo. Conviene
    definir una copia periódica de la base de datos desde el primer día.
-7. **Folio de la ficha:** ¿basta el número interno de la visita, o se necesita
+8. **Folio de la ficha:** ¿basta el número interno de la visita, o se necesita
    un folio visible para cuadrar con un correlativo de papel?
+
+---
+
+## Autor
+
+**Tomás Murua Rojas**
+
+- LinkedIn: [tomás murua rojas](https://www.linkedin.com/in/tom%C3%A1s-murua-a03654325/)
+
+---
+
+## Licencia
+
+Este repositorio es **público únicamente como portafolio y muestra técnica**.
+El código es propietario y **no** se concede permiso para usarlo, ejecutarlo,
+desplegarlo, copiarlo, modificarlo, distribuirlo ni incorporarlo en otro
+proyecto. Todos los derechos están reservados.
+
+El aviso legal completo está en [`LICENSE`](LICENSE).
+
+La publicación en GitHub permite ver y bifurcar el repositorio según los
+[Términos de Servicio de GitHub](https://docs.github.com/es/site-policy/github-terms/github-terms-of-service);
+eso no otorga ningún derecho de uso sobre el software.

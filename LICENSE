@@ -1,0 +1,39 @@
+Copyright (c) 2026 Tomás Murua Rojas
+Todos los derechos reservados / All rights reserved.
+
+Este repositorio y su contenido —código fuente, plantillas, hojas de estilo,
+scripts, textos, imágenes y documentación— son propiedad exclusiva de Tomás
+Murua Rojas.
+
+El repositorio se publica únicamente con fines de portafolio, demostración y
+evaluación técnica. No se concede licencia ni permiso alguno, expreso o
+implícito, para:
+
+- usar, ejecutar o desplegar el software, total o parcialmente;
+- copiar, reproducir o reutilizar el código o cualquier otro contenido;
+- modificar, adaptar o crear obras derivadas;
+- distribuir, publicar, sublicenciar o vender el software o sus derivados;
+- incorporar el código en otro proyecto, producto o servicio.
+
+Cualquier uso distinto de la visualización del repositorio requiere autorización
+previa y por escrito del titular de los derechos.
+
+La visualización y la bifurcación (fork) dentro de GitHub se rigen por los
+Términos de Servicio de GitHub y no constituyen una licencia de uso sobre el
+software. Cualquier bifurcación debe limitarse a lo que permitan dichos
+términos.
+
+EL SOFTWARE SE PROPORCIONA "TAL CUAL", SIN GARANTÍA DE NINGÚN TIPO, EXPRESA O
+IMPLÍCITA, INCLUIDAS, ENTRE OTRAS, LAS GARANTÍAS DE COMERCIABILIDAD, IDONEIDAD
+PARA UN FIN PARTICULAR Y NO INFRACCIÓN. EN NINGÚN CASO EL TITULAR SERÁ
+RESPONSABLE DE NINGUNA RECLAMACIÓN, DAÑO U OTRA RESPONSABILIDAD DERIVADA DEL
+SOFTWARE O DE SU USO.
+
+---
+
+English summary: This repository is published for portfolio and technical
+review purposes only. All rights reserved. No license or permission is granted
+to use, run, deploy, copy, modify, distribute, sublicense, or create derivative
+works from this software. Any other use requires prior written permission from
+the copyright holder. Viewing and forking on GitHub are governed by GitHub's
+Terms of Service and do not grant any license to use the software.

@@ -2,6 +2,7 @@
   "name": "taller-frenos",
   "version": "1.0.0",
   "private": true,
+  "license": "UNLICENSED",
   "description": "Hoja de estilos del sistema del taller, compilada con Tailwind.",
   "scripts": {
     "build:css": "tailwindcss --input assets/css/tailwind.src.css --output static/css/tailwind.css --minify",
