@@ -44,6 +44,21 @@ class LineaFichaFormSetTests(SimpleTestCase):
         self.assertEqual(linea["codigo_repuesto"], "23479")
         self.assertEqual(linea["marca_repuesto"], "Bosch")
 
+    def test_discos_nuevos_aparece_debajo_de_rectificado_de_discos(self) -> None:
+        opciones = list(TipoItemFicha.choices)
+        indice_rectificado = next(
+            indice
+            for indice, (valor, _) in enumerate(opciones)
+            if valor == TipoItemFicha.RECT_DISCO
+        )
+
+        self.assertEqual(
+            opciones[indice_rectificado + 1],
+            (TipoItemFicha.DISCOS_NUEVOS, TipoItemFicha.DISCOS_NUEVOS.label),
+        )
+        formset = self._formset({"tipo": TipoItemFicha.DISCOS_NUEVOS, "precio": 45_000})
+        self.assertTrue(formset.is_valid(), formset.errors)
+
     def test_cilindros_nuevos_aparece_debajo_de_rectificado_de_tambores(self) -> None:
         opciones = list(TipoItemFicha.choices)
         indice_rectificado = next(

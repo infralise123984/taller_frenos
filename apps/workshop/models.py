@@ -173,12 +173,14 @@ class TipoItemFicha(models.TextChoices):
     Catálogo de líneas de la ficha de trabajo.
 
     Reproduce las 15 líneas impresas de la ficha de papel, más
-    ``CILINDROS_NUEVOS`` y dos opciones de servicio: ``DESCUENTO`` (se escribe
-    con precio negativo) y ``OTRO`` (para lo que no está en la lista).
+    ``DISCOS_NUEVOS``, ``CILINDROS_NUEVOS`` y dos opciones de servicio:
+    ``DESCUENTO`` (se escribe con precio negativo) y ``OTRO`` (para lo que no
+    está en la lista).
     """
 
     PASTILLAS = "pastillas", "Pastillas"
     RECT_DISCO = "rect_disco", "Rect. Disco"
+    DISCOS_NUEVOS = "discos_nuevos", "Discos nuevos"
     PATINES = "patines", "Patines"
     RECT_TAMBORES = "rect_tambores", "Rect. Tambores"
     CILINDROS_NUEVOS = "cilindros_nuevos", "Cilindros nuevos"
