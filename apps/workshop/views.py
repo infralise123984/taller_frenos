@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 
 from django.contrib import messages
+from django.core.exceptions import PermissionDenied
 from django.http import HttpRequest, HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404, redirect, render
 from django.urls import reverse
@@ -25,6 +26,7 @@ from apps.workshop.exceptions import (
 from apps.workshop.forms import (
     PREFIJO_LINEAS,
     BuscarPatenteForm,
+    DatosTallerForm,
     FichaEdicionForm,
     IngresoRapidoForm,
     LineaFichaEdicionFormSet,
@@ -47,7 +49,9 @@ from apps.workshop.selectors import (
 )
 from apps.workshop.services import (
     DatosIngreso,
+    DatosTallerEntrada,
     LineaFicha,
+    build_actualizar_datos_taller_service,
     build_actualizar_ficha_service,
     build_registro_ingreso_service,
 )
@@ -344,3 +348,41 @@ def ficha_imprimir(request: HttpRequest, pk: int) -> HttpResponse:
         "taller": datos_del_taller(),
     }
     return render(request, "workshop/ficha_imprimible.html", contexto)
+
+
+# ---------------------------------------------------------------------------
+# Datos del taller
+# ---------------------------------------------------------------------------
+
+
+def datos_taller(request: HttpRequest) -> HttpResponse:
+    """
+    Edita el encabezado de la ficha impresa desde el sistema, sin el admin.
+
+    Solo el personal con acceso al panel puede cambiarlo: son los datos que se
+    entregan impresos al cliente, no una preferencia de cada cuenta.
+    """
+    if not request.user.is_staff:
+        raise PermissionDenied(
+            "Solo el personal con acceso al panel puede cambiar los datos del taller."
+        )
+
+    taller = datos_del_taller()
+
+    if request.method == "POST":
+        form = DatosTallerForm(request.POST)
+        if form.is_valid():
+            build_actualizar_datos_taller_service().actualizar(
+                DatosTallerEntrada(
+                    direccion=form.cleaned_data["direccion"],
+                    ciudad=form.cleaned_data["ciudad"],
+                    telefono=form.cleaned_data["telefono"],
+                )
+            )
+            messages.success(request, "Datos del taller guardados. La ficha ya los muestra.")
+            return redirect("workshop:datos_taller")
+    else:
+        form = DatosTallerForm(instance=taller)
+
+    contexto = {"form": form, "taller": taller}
+    return render(request, "workshop/datos_taller.html", contexto)

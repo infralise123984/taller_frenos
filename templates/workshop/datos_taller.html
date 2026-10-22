@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% load ui %}
+
+{% block title %}Datos del taller · Taller de Frenos{% endblock %}
+
+{% block content %}
+
+  <h1 class="mb-1 text-2xl font-bold text-slate-900">Datos del taller</h1>
+  <p class="mb-6 text-sm text-slate-600">
+    Estos datos salen impresos en el encabezado de la ficha que se entrega al cliente.
+  </p>
+
+  {% if not taller.direccion and not taller.telefono %}
+    <section class="mb-5 rounded-2xl border-2 border-amber-300 bg-amber-50 p-5 text-sm text-amber-900">
+      La ficha se imprime sin dirección ni teléfono mientras estos campos estén vacíos.
+    </section>
+  {% endif %}
+
+  <section class="{% clase_tarjeta %} p-5 sm:p-6">
+    <form method="post" novalidate>
+      {% csrf_token %}
+      {% include "partials/_field.html" with field=form.direccion %}
+      {% include "partials/_field.html" with field=form.ciudad %}
+      {% include "partials/_field.html" with field=form.telefono %}
+
+      <p class="mb-4 text-xs text-slate-600">
+        El teléfono se imprime tal como lo escribas, para que se pueda marcar desde el papel.
+      </p>
+
+      <button type="submit" class="{% clase_boton_primario %} sm:w-auto sm:px-8">
+        Guardar datos
+      </button>
+    </form>
+  </section>
+
+{% endblock %}

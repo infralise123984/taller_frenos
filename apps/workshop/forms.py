@@ -10,7 +10,7 @@ from django.utils import timezone
 from django.utils.formats import number_format
 
 from apps.ui import INPUT, INPUT_COMPACTO, SELECT, TEXTAREA
-from apps.workshop.models import TOPE_PRECIO, TipoItemFicha
+from apps.workshop.models import TOPE_PRECIO, DatosTaller, TipoItemFicha
 from apps.workshop.patentes import is_valid_patente, normalize_patente
 from apps.workshop.services import LineaFicha
 
@@ -303,6 +303,44 @@ class FichaEdicionForm(forms.Form):
     @classmethod
     def desde_orden(cls, orden) -> FichaEdicionForm:
         return cls(initial={"observaciones": orden.observaciones})
+
+
+# ---------------------------------------------------------------------------
+# Datos del taller
+# ---------------------------------------------------------------------------
+
+
+class DatosTallerForm(forms.ModelForm):
+    """
+    Dirección, ciudad y teléfono que salen impresos en la ficha del cliente.
+
+    Los tres campos son opcionales porque la ficha se imprime igual sin ellos;
+    lo que se exige es que no queden espacios sobrantes al inicio o al final.
+    """
+
+    class Meta:
+        model = DatosTaller
+        fields = ("direccion", "ciudad", "telefono")
+        widgets = {
+            "direccion": forms.TextInput(
+                attrs={
+                    "class": INPUT,
+                    "autocomplete": "street-address",
+                    "placeholder": "Alameda N° 0779 al llegar a Av. Victoria",
+                }
+            ),
+            "ciudad": forms.TextInput(
+                attrs={"class": INPUT, "autocomplete": "address-level2", "placeholder": "Rancagua"}
+            ),
+            "telefono": forms.TextInput(
+                attrs={
+                    "class": INPUT,
+                    "inputmode": "tel",
+                    "autocomplete": "tel",
+                    "placeholder": "225 384 512",
+                }
+            ),
+        }
 
 
 def lineas_iniciales(orden) -> list[dict[str, object]]:

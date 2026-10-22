@@ -19,6 +19,13 @@
     </button>
   </div>
 
+  {% if user.is_staff and not taller.direccion and not taller.telefono %}
+    <p class="no-print mb-5 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      La ficha no muestra dirección ni teléfono porque faltan los datos del taller.
+      <a href="{% url 'workshop:datos_taller' %}" class="font-semibold underline">Cargarlos ahora</a>.
+    </p>
+  {% endif %}
+
   <article class="ficha-impresa mx-auto max-w-3xl bg-white p-6 shadow-sm sm:p-8">
 
     {# ------------------------------- Encabezado ------------------------------ #}

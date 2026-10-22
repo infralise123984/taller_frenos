@@ -14,4 +14,5 @@ urlpatterns = [
     path("patentes/estado/", views.patente_estado, name="patente_estado"),
     path("ingresos/<int:pk>/editar/", views.ficha_editar, name="ficha_editar"),
     path("ingresos/<int:pk>/imprimir/", views.ficha_imprimir, name="ficha_imprimir"),
+    path("datos-taller/", views.datos_taller, name="datos_taller"),
 ]

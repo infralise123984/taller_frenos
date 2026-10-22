@@ -208,6 +208,7 @@ persona puede volver a configurarlo después.
 | `/taller/ingresos/nuevo/` | Registro rápido de un ingreso |
 | `/taller/ingresos/<id>/editar/` | Corregir las líneas de una ficha guardada |
 | `/taller/ingresos/<id>/imprimir/` | Ficha lista para imprimir y entregar |
+| `/taller/datos-taller/` | Dirección, ciudad y teléfono que salen en la ficha (solo personal con acceso al panel) |
 
 La interfaz está pensada para usarse de pie en el mesón: campos y botones
 grandes, textos legibles y diseño que funciona igual en teléfono, tablet y
@@ -253,7 +254,8 @@ ficha de cliente.
   con un detalle de texto libre donde va la posición (delantero, trasero). La
   línea `Descuento` se escribe con precio negativo y resta del total.
 - **`DatosTaller`** — fila única con dirección, ciudad y teléfono, los datos que
-  salen impresos en la ficha que se entrega al cliente.
+  salen impresos en la ficha que se entrega al cliente. Se editan desde
+  `/taller/datos-taller/` (cuentas con acceso al panel) o desde el admin.
 
 Los detalles de la ficha (líneas, precios, total, impresión y corrección) están
 como instrucciones de proyecto en

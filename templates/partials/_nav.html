@@ -18,6 +18,10 @@
       </a>
 
       {% if user.is_staff %}
+        <a href="{% url 'workshop:datos_taller' %}"
+           class="rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
+          Datos del taller
+        </a>
         <a href="{% url 'accounts:invitaciones' %}"
            class="rounded-lg px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-100">
           Cuentas

@@ -383,6 +383,12 @@ class LineaFicha:
   modelo. Cada dato se imprime solo si está cargado (`{% if %}`), para que un
   campo vacío no deje líneas sueltas. El teléfono se imprime legible para
   marcarlo desde el papel (ej. `225 384 512`).
+- **Edición sin el admin**: `GET/POST /taller/datos-taller/` →
+  `workshop/datos_taller.html`, solo para personal con acceso al panel
+  (`is_staff`; el resto recibe 403). El formulario usa `DatosTallerForm` y el
+  servicio `ActualizarDatosTallerService`, que guarda sobre la fila única. Si el
+  encabezado está vacío, la ficha muestra al personal un aviso `no-print` con el
+  enlace para cargarlo.
 - CSS `@media print` para que salga en una hoja, sin navegación ni botones.
   Tailwind llega por CDN y se inyecta **después** de `app.css`, así que las reglas
   de impresión que compiten con sus clases (`.ficha-impresa`, `main`) llevan
@@ -526,6 +532,9 @@ Resuelto en la rama `feature/ficha-trabajo`:
 4. ~~Botón "Imprimir"~~: cada visita del historial tiene "Corregir ficha" e
    "Imprimir".
 5. ~~Documentación~~: rutas y modelo de datos en el [README](../../README.md).
+6. ~~Datos del taller~~: pantalla "Datos del taller" dentro del sistema
+   (`/taller/datos-taller/`, solo `is_staff`) sobre el mismo modelo; el admin de
+   Django sigue disponible como respaldo.
 
 Queda pendiente:
 
@@ -534,9 +543,6 @@ Queda pendiente:
    encargada antes de darlo por bueno.
 2. **Sin auditoría**: no hay registro de quién cambió un precio. Si importa, es un
    modelo nuevo y merece su propio plan.
-3. **Datos del taller**: hoy se editan en el admin de Django. Si a la encargada le
-   resulta incómodo, el siguiente paso es una pantalla "Datos del taller" dentro
-   del sistema, sobre el mismo modelo.
 
 ---
 
