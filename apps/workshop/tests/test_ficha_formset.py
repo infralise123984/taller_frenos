@@ -59,7 +59,7 @@ class LineaFichaFormSetTests(SimpleTestCase):
         formset = self._formset({"tipo": TipoItemFicha.DISCOS_NUEVOS, "precio": 45_000})
         self.assertTrue(formset.is_valid(), formset.errors)
 
-    def test_cilindros_nuevos_aparece_debajo_de_rectificado_de_tambores(self) -> None:
+    def test_tambores_nuevos_aparece_debajo_de_rectificado_de_tambores(self) -> None:
         opciones = list(TipoItemFicha.choices)
         indice_rectificado = next(
             indice
@@ -69,6 +69,21 @@ class LineaFichaFormSetTests(SimpleTestCase):
 
         self.assertEqual(
             opciones[indice_rectificado + 1],
+            (TipoItemFicha.TAMBORES_NUEVOS, TipoItemFicha.TAMBORES_NUEVOS.label),
+        )
+        formset = self._formset({"tipo": TipoItemFicha.TAMBORES_NUEVOS, "precio": 38_000})
+        self.assertTrue(formset.is_valid(), formset.errors)
+
+    def test_cilindros_nuevos_aparece_debajo_de_tambores_nuevos(self) -> None:
+        opciones = list(TipoItemFicha.choices)
+        indice_tambores = next(
+            indice
+            for indice, (valor, _) in enumerate(opciones)
+            if valor == TipoItemFicha.TAMBORES_NUEVOS
+        )
+
+        self.assertEqual(
+            opciones[indice_tambores + 1],
             (TipoItemFicha.CILINDROS_NUEVOS, TipoItemFicha.CILINDROS_NUEVOS.label),
         )
         formset = self._formset({"tipo": TipoItemFicha.CILINDROS_NUEVOS, "precio": 20_000})
