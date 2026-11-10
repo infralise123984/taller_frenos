@@ -1,5 +1,38 @@
 /* Ajustes que Tailwind no cubre por sí solo. */
 
+/* ---------------------------------------------------------------------------
+   Legibilidad (prueba)
+
+   Tres tamaños de letra elegibles y un contraste más alto que el de Tailwind.
+   Como las utilidades de Tailwind están en rem, cambiar el tamaño de la raíz
+   escala también los espaciados: la pantalla crece pareja y no se desarma.
+
+   El color se sube dos pasos de la escala de slate: lo que era gris de ayuda
+   pasa a ser texto legible sobre blanco y sobre slate-100. Estas reglas van
+   después de tailwind.css, así que ganan por orden de aparición.
+--------------------------------------------------------------------------- */
+
+html[data-texto="normal"] {
+  font-size: 100%;
+}
+
+html[data-texto="grande"] {
+  font-size: 118.75%;
+}
+
+html[data-texto="muy-grande"] {
+  font-size: 137.5%;
+}
+
+/* Sin grises sobre blanco: todo el texto queda en casi negro y la jerarquía se
+   marca con tamaño y peso, no con un gris que se pierde a media luz. */
+.text-slate-400,
+.text-slate-500,
+.text-slate-600,
+.text-slate-700 {
+  color: #0f172a; /* slate-900 */
+}
+
 /* El check de "trabajos realizados" se dibuja como tarjeta: el input real queda
    oculto y el estado se refleja con el selector :checked + label. */
 .trabajo-checkbox {
@@ -22,12 +55,14 @@
   display: none;
 }
 
-/* Evita que el navegador móvil haga zoom al enfocar campos de texto. */
+/* Evita que el navegador móvil haga zoom al enfocar campos de texto. El 16px
+   es el mínimo del navegador, no un tope: si la persona eligió letra grande, el
+   campo crece con el resto. */
 @media (max-width: 640px) {
   input,
   select,
   textarea {
-    font-size: 16px;
+    font-size: max(16px, 1em);
   }
 }
 
@@ -42,6 +77,12 @@
 }
 
 @media print {
+  /* El papel mantiene su tamaño: la ficha está medida para una hoja y la
+     preferencia de pantalla no debe desbordarla. */
+  html[data-texto] {
+    font-size: 100% !important;
+  }
+
   .no-print {
     display: none !important;
   }

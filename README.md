@@ -215,6 +215,12 @@ grandes, textos legibles y diseño que funciona igual en teléfono, tablet y
 escritorio. Tailwind se compila a `static/css/tailwind.css` (ver
 [Hoja de estilos](#hoja-de-estilos)); la página no carga nada desde CDNs.
 
+**Tamaño de letra:** el control `A / A+ / A++` de la barra escala toda la
+interfaz (raíz en 16, 19 y 22 px) y la elección se guarda en el navegador. Por
+defecto arranca en `A+`. El texto de apoyo va en casi negro, sin grises sobre
+blanco, y la ficha impresa mantiene su tamaño de papel sea cual sea la elección
+en pantalla.
+
 En el registro de un ingreso, mientras se escribe la patente la pantalla le
 pregunta a `/taller/patentes/estado/` si ese auto ya vino. Es un endpoint JSON
 interno (exige sesión iniciada, igual que todo el taller): si el vehículo ya

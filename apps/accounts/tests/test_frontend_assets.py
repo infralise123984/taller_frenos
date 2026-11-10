@@ -10,6 +10,8 @@ from django.conf import settings
 from django.test import TestCase
 from django.urls import reverse
 
+from apps.accounts.models import User
+
 RUTA_CSS_COMPILADO = "static/css/tailwind.css"
 
 
@@ -42,3 +44,22 @@ class HojaDeEstilosTests(TestCase):
         self.assertIn(".hidden{", hoja)  # static/js/ficha.js
         self.assertIn(r"disabled\:opacity-60", hoja)  # apps/ui.py
         self.assertIn(r"sm\:flex-row", hoja)  # templates/partials/_nav.html
+
+
+class TamanoDeTextoPreferidoTests(TestCase):
+    """El tamaño de letra elegido por la persona se aplica antes del primer pintado."""
+
+    def test_la_pagina_aplica_el_tamano_guardado_y_carga_el_control(self) -> None:
+        respuesta = self.client.get(reverse("accounts:login"))
+
+        self.assertContains(respuesta, 'setAttribute("data-texto"')
+        self.assertContains(respuesta, "js/lectura.js")
+
+    def test_el_personal_puede_elegir_entre_tres_tamanos(self) -> None:
+        User.objects.create_user(email="tamano@taller.cl", password="clave-de-prueba-1234")
+        self.client.login(email="tamano@taller.cl", password="clave-de-prueba-1234")
+
+        respuesta = self.client.get(reverse("workshop:buscar"))
+
+        for nivel in ("normal", "grande", "muy-grande"):
+            self.assertContains(respuesta, f'data-texto-nivel="{nivel}"')

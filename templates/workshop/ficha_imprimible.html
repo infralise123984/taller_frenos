@@ -84,40 +84,46 @@
     </dl>
 
     {# --------------------------- Líneas de la ficha -------------------------- #}
-    <table class="mt-6 w-full border-collapse text-sm">
-      <thead>
-        <tr class="border-b-2 border-slate-900 text-left text-xs uppercase tracking-wide text-slate-500">
-          <th class="py-2">Trabajo</th>
-          <th class="py-2">Detalle</th>
-          <th class="py-2">Código</th>
-          <th class="py-2">Marca</th>
-          <th class="py-2 text-right">Precio</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for linea in lineas %}
-          <tr class="border-b border-slate-200">
-            <td class="py-2 font-medium text-slate-900">{{ linea.get_tipo_display }}</td>
-            <td class="py-2 text-slate-700">{{ linea.detalle }}</td>
-            <td class="py-2 text-slate-700">{{ linea.codigo_repuesto }}</td>
-            <td class="py-2 text-slate-700">{{ linea.marca_repuesto }}</td>
-            <td class="py-2 text-right font-semibold tabular-nums text-slate-900">
-              $ {{ linea.precio|intcomma }}
+    {% comment %}
+      En pantalla chica con letra grande la tabla no cabe: se desplaza dentro de
+      la hoja en vez de arrastrar toda la página. En papel no hay desborde.
+    {% endcomment %}
+    <div class="mt-6 overflow-x-auto">
+      <table class="w-full border-collapse text-sm">
+        <thead>
+          <tr class="border-b-2 border-slate-900 text-left text-xs uppercase tracking-wide text-slate-500">
+            <th class="py-2">Trabajo</th>
+            <th class="py-2">Detalle</th>
+            <th class="py-2">Código</th>
+            <th class="py-2">Marca</th>
+            <th class="py-2 text-right">Precio</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for linea in lineas %}
+            <tr class="border-b border-slate-200">
+              <td class="py-2 font-medium text-slate-900">{{ linea.get_tipo_display }}</td>
+              <td class="py-2 text-slate-700">{{ linea.detalle }}</td>
+              <td class="py-2 text-slate-700">{{ linea.codigo_repuesto }}</td>
+              <td class="py-2 text-slate-700">{{ linea.marca_repuesto }}</td>
+              <td class="py-2 text-right font-semibold tabular-nums text-slate-900">
+                $ {{ linea.precio|intcomma }}
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+        <tfoot>
+          <tr class="border-t-2 border-slate-900">
+            <td colspan="4" class="py-3 text-right text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Total
+            </td>
+            <td class="py-3 text-right text-xl font-black tabular-nums text-slate-900">
+              $ {{ orden.total|intcomma }}
             </td>
           </tr>
-        {% endfor %}
-      </tbody>
-      <tfoot>
-        <tr class="border-t-2 border-slate-900">
-          <td colspan="4" class="py-3 text-right text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Total
-          </td>
-          <td class="py-3 text-right text-xl font-black tabular-nums text-slate-900">
-            $ {{ orden.total|intcomma }}
-          </td>
-        </tr>
-      </tfoot>
-    </table>
+        </tfoot>
+      </table>
+    </div>
 
     {# ------------------------------ Observaciones ---------------------------- #}
     <section class="mt-6">

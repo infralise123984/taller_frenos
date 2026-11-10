@@ -39,7 +39,7 @@ class BuscarPatenteForm(forms.Form):
                 "class": (
                     "w-full rounded-2xl border-2 border-slate-300 bg-white px-5 py-5 "
                     "text-center text-3xl font-bold uppercase tracking-[0.25em] text-slate-900 "
-                    "shadow-sm placeholder:text-slate-300 placeholder:tracking-normal "
+                    "shadow-sm placeholder:text-slate-500 placeholder:tracking-normal "
                     "focus:border-sky-600 focus:outline-none focus:ring-4 focus:ring-sky-100"
                 ),
                 "placeholder": "ABCD12",

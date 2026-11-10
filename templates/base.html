@@ -20,6 +20,23 @@
   {% endcomment %}
   <link rel="stylesheet" href="{% static 'css/tailwind.css' %}">
   <link rel="stylesheet" href="{% static 'css/app.css' %}">
+
+  {% comment %}
+    Aplica el tamaño de letra guardado antes del primer pintado: si se hiciera
+    desde lectura.js (defer), la página aparecería chica y daría un salto.
+  {% endcomment %}
+  <script>
+    (function () {
+      var nivel = "grande";
+      try {
+        var guardado = localStorage.getItem("taller-texto");
+        if (guardado === "normal" || guardado === "muy-grande" || guardado === "grande") {
+          nivel = guardado;
+        }
+      } catch (error) {}
+      document.documentElement.setAttribute("data-texto", nivel);
+    })();
+  </script>
 </head>
 <body class="min-h-screen bg-slate-100 text-slate-900 antialiased">
 
@@ -34,6 +51,7 @@
 
   {% block scripts %}{% endblock %}
 
+  <script src="{% static 'js/lectura.js' %}" defer></script>
   <script src="{% static 'js/pwa.js' %}" defer></script>
 </body>
 </html>
