@@ -207,6 +207,24 @@ class RegistroIngresoTests(BaseAutenticadaTests):
 
         self.assertContains(respuesta, 'value="ABCD12"')
 
+    def test_precarga_al_dueno_al_llegar_desde_la_ficha(self) -> None:
+        """El auto ya está en el sistema: no hay que volver a escribir al dueño."""
+        respuesta = self.client.get(reverse("workshop:ingreso_create"), {"patente": "bjd-f45"})
+        form = respuesta.context["form"]
+
+        self.assertEqual(form["patente"].value(), "BJDF45")
+        self.assertEqual(form["marca"].value(), "Toyota")
+        self.assertEqual(form["cliente_nombre"].value(), "María Rojas")
+        self.assertEqual(form["cliente_telefono"].value(), "56981234567")
+
+    def test_una_patente_desconocida_solo_precarga_el_numero(self) -> None:
+        respuesta = self.client.get(reverse("workshop:ingreso_create"), {"patente": "ZZZZ11"})
+        form = respuesta.context["form"]
+
+        self.assertEqual(form["patente"].value(), "ZZZZ11")
+        self.assertEqual(form["cliente_nombre"].value(), None)
+        self.assertEqual(form["marca"].value(), None)
+
     def test_formulario_no_pide_datos_descriptivos_ni_kilometraje_actual(self) -> None:
         respuesta = self.client.get(reverse("workshop:ingreso_create"))
         campos = respuesta.context["form"].fields

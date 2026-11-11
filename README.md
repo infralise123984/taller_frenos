@@ -226,8 +226,12 @@ pregunta a `/taller/patentes/estado/` si ese auto ya vino. Es un endpoint JSON
 interno (exige sesión iniciada, igual que todo el taller): si el vehículo ya
 está registrado, aparece una tarjeta con el dueño, cuántas veces ha venido y qué
 se le hizo la última vez, con atajos para ver la ficha completa o cargar los
-datos del dueño. Evita volver a registrar de cero un auto conocido y duplicar su
-ficha de cliente.
+datos del dueño. Esos datos quedan atados a la patente: si se escribe otra, se
+limpian los campos que llenó el atajo, para no guardarle el dueño equivocado al
+auto nuevo. Cuando se llega desde la ficha del vehículo (`?patente=`), el
+formulario ya viene con la marca y el dueño escritos y no aparece la tarjeta.
+Evita volver a registrar de cero un auto conocido y duplicar su ficha de
+cliente.
 
 ---
 

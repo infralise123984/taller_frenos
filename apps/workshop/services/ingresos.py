@@ -162,8 +162,14 @@ class RegistroIngresoService:
         validar_lineas(datos.lineas)
 
         vehiculo_existente = self._vehiculos.filter(patente=patente).first()
-        if vehiculo_existente is not None and not datos.cliente_telefono.strip():
-            cliente, cliente_creado = vehiculo_existente.cliente, False
+
+        # Un auto conocido conserva a su dueño. Cuando lo que llega del
+        # formulario es esa misma persona (sin teléfono, o con el suyo), solo se
+        # completan los datos que quedaron vacíos en su ficha.
+        dueno = vehiculo_existente.cliente if vehiculo_existente is not None else None
+        telefono = normalize_telefono(datos.cliente_telefono)
+        if dueno is not None and (not telefono or not dueno.telefono or telefono == dueno.telefono):
+            cliente, cliente_creado = self._completar_datos_del_dueno(dueno, datos), False
         else:
             cliente, cliente_creado = self._resolver_cliente(datos)
 
@@ -191,6 +197,31 @@ class RegistroIngresoService:
         )
 
     # -- Resolución de entidades ------------------------------------------
+
+    def _completar_datos_del_dueno(self, cliente: Cliente, datos: DatosIngreso) -> Cliente:
+        """
+        Completa los datos del dueño que quedaron vacíos, sin pisar los escritos.
+
+        Una visita anterior pudo guardarse sin nombre, teléfono o correo. Lo que
+        llegue ahora se agrega; un dato ya guardado no se reemplaza, porque
+        cambiar de dueño es una decisión aparte y no el efecto de un registro
+        rápido.
+        """
+        cambios: list[str] = []
+
+        for campo, valor in (
+            ("nombre", datos.cliente_nombre.strip()),
+            ("telefono", normalize_telefono(datos.cliente_telefono)),
+            ("email", datos.cliente_email.strip()),
+        ):
+            if valor and not getattr(cliente, campo):
+                setattr(cliente, campo, valor)
+                cambios.append(campo)
+
+        if cambios:
+            cliente.save(update_fields=[*cambios, "updated_at"])
+
+        return cliente
 
     def _resolver_cliente(self, datos: DatosIngreso) -> tuple[Cliente, bool]:
         """

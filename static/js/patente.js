@@ -33,8 +33,32 @@
   var tarjeta = null;
   var registrado = null;
 
+  // Lo que cargó el atajo "Cargar los datos del dueño" o el propio formulario
+  // al abrirse desde la ficha del vehículo, atado a la patente de la que salió:
+  // si la patente cambia, esos datos ya no sirven.
+  var rellenado = null;
+
+  // Patente cuyos datos ya están escritos en el formulario.
+  var patenteCargada = null;
+
+  var CAMPOS_DEL_DUENO = ["cliente_nombre", "cliente_telefono", "cliente_email"];
+
+  // Lo que el formulario trae escrito cuando se abre desde la ficha del auto.
+  var CAMPOS_PRECARGADOS = ["marca", ...CAMPOS_DEL_DUENO];
+
   function soloLetrasYNumeros(texto) {
     return texto.replace(/[^0-9a-z]/gi, "");
+  }
+
+  function patenteDelCampo() {
+    return soloLetrasYNumeros(campo.value).toUpperCase();
+  }
+
+  function abortarConsulta() {
+    if (consulta) {
+      consulta.abort();
+      consulta = null;
+    }
   }
 
   function campoDe(nombre) {
@@ -92,25 +116,39 @@
   }
 
   function consultar() {
-    var patente = campo.value;
-    if (soloLetrasYNumeros(patente).length < LARGO_MINIMO) {
+    var patente = patenteDelCampo();
+
+    // El auto y su dueño ya están cargados en el formulario (se llegó desde su
+    // ficha): volver a preguntar solo molesta.
+    if (patente === patenteCargada) {
+      return;
+    }
+
+    if (patente.length < LARGO_MINIMO) {
+      // Sin patente confiable no hay nada que avisar, y una respuesta que
+      // todavía venía en camino ya no corresponde a lo escrito.
+      abortarConsulta();
       ocultar();
       return;
     }
 
     // Una consulta por vez: si la operadora sigue escribiendo, la anterior ya
     // no interesa y su respuesta no debe pisar a la nueva.
-    if (consulta) {
-      consulta.abort();
-    }
+    abortarConsulta();
     consulta = new AbortController();
 
-    var direccion = URL_ESTADO + "?patente=" + encodeURIComponent(patente);
+    var direccion = URL_ESTADO + "?patente=" + encodeURIComponent(campo.value);
     fetch(direccion, { signal: consulta.signal, headers: { Accept: "application/json" } })
       .then(function (respuesta) {
         return respuesta.ok ? respuesta.json() : Promise.reject(new Error(respuesta.status));
       })
       .then(function (info) {
+        // La patente cambió mientras se esperaba la respuesta: la tarjeta
+        // mostraría un auto distinto al que está escrito en el campo.
+        if (patenteDelCampo() !== patente) {
+          return;
+        }
+
         if (info.registrado) {
           mostrar(info);
         } else {
@@ -128,13 +166,74 @@
     temporizador = setTimeout(consultar, ESPERA_MS);
   }
 
-  function rellenar(nombre, valor) {
-    if (!valor) {
+  function escribirCampo(nombre, valor) {
+    var entrada = document.querySelector('[name="' + nombre + '"]');
+    if (!entrada) {
+      return false;
+    }
+    entrada.value = valor;
+    return true;
+  }
+
+  function cargarDatosDelDueno() {
+    var cliente = registrado.cliente;
+    var valores = {
+      cliente_nombre: cliente.nombre || "",
+      cliente_telefono: cliente.telefono || "",
+      cliente_email: cliente.email || "",
+    };
+
+    rellenado = { patente: patenteDelCampo(), valores: {} };
+
+    CAMPOS_DEL_DUENO.forEach(function (nombre) {
+      if (!valores[nombre]) {
+        return;
+      }
+      if (escribirCampo(nombre, valores[nombre])) {
+        rellenado.valores[nombre] = valores[nombre];
+      }
+    });
+
+    patenteCargada = rellenado.patente;
+  }
+
+  function limpiarDatosPrecargados() {
+    if (rellenado) {
+      Object.keys(rellenado.valores).forEach(function (nombre) {
+        var entrada = document.querySelector('[name="' + nombre + '"]');
+        // Solo se borra lo que se cargó y nadie corrigió: lo que la operadora
+        // escribió a mano se respeta.
+        if (entrada && entrada.value === rellenado.valores[nombre]) {
+          entrada.value = "";
+        }
+      });
+    }
+
+    rellenado = null;
+    patenteCargada = null;
+  }
+
+  // Si el formulario se abrió desde la ficha del vehículo, la patente, la marca
+  // y los datos del dueño vienen escritos por el servidor: se recuerdan para
+  // poder limpiarlos si la patente cambia.
+  function recordarDatosIniciales() {
+    var patente = patenteDelCampo();
+    if (!patente) {
       return;
     }
-    var entrada = document.querySelector('[name="' + nombre + '"]');
-    if (entrada) {
-      entrada.value = valor;
+
+    patenteCargada = patente;
+
+    var valores = {};
+    CAMPOS_PRECARGADOS.forEach(function (nombre) {
+      var entrada = document.querySelector('[name="' + nombre + '"]');
+      if (entrada && entrada.value) {
+        valores[nombre] = entrada.value;
+      }
+    });
+
+    if (Object.keys(valores).length) {
+      rellenado = { patente: patente, valores: valores };
     }
   }
 
@@ -144,18 +243,25 @@
       return;
     }
 
-    rellenar("cliente_nombre", registrado.cliente.nombre);
-    rellenar("cliente_telefono", registrado.cliente.telefono);
-    rellenar("cliente_email", registrado.cliente.email);
+    cargarDatosDelDueno();
   });
 
-  campo.addEventListener("input", consultarConEspera);
+  campo.addEventListener("input", function () {
+    // Los datos del dueño pertenecen a la patente de la que se cargaron: con
+    // otra patente en el campo se guardarían en el auto equivocado.
+    if (patenteCargada && patenteDelCampo() !== patenteCargada) {
+      limpiarDatosPrecargados();
+    }
+
+    consultarConEspera();
+  });
+
   campo.addEventListener("blur", function () {
     clearTimeout(temporizador);
     consultar();
   });
 
-  // Si la patente llegó precargada (por ejemplo desde la búsqueda), el aviso
-  // aparece de inmediato sin que nadie tenga que tocar el campo.
-  consultar();
+  // Si la patente llegó escrita desde la ficha del vehículo, sus datos ya vienen
+  // en el formulario: no hay nada que preguntar hasta que se escriba otra.
+  recordarDatosIniciales();
 })();

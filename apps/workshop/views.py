@@ -44,6 +44,7 @@ from apps.workshop.selectors import (
     ingresos_recientes,
     orden_de_visita,
     resumen_de_vehiculo,
+    vehiculo_por_patente,
     vehiculo_ya_registrado,
     vehiculos_de_cliente,
 )
@@ -135,21 +136,41 @@ def cliente_detail(request: HttpRequest, pk: int) -> HttpResponse:
 
 def ingreso_create(request: HttpRequest) -> HttpResponse:
     """Registra cliente, vehículo y la ficha del trabajo, en una sola pasada."""
-    inicial = {}
-    patente_precargada = (request.GET.get("patente") or "").strip().upper()
-    if patente_precargada:
-        inicial["patente"] = patente_precargada
-
     if request.method == "POST":
         form = IngresoRapidoForm(request.POST)
         formset = LineaFichaFormSet(request.POST, prefix=PREFIJO_LINEAS)
         if form.is_valid() and formset.is_valid():
             return _registrar_ingreso(request, form, formset)
     else:
-        form = IngresoRapidoForm(initial=inicial)
+        form = IngresoRapidoForm(initial=_datos_iniciales(request))
         formset = LineaFichaFormSet(prefix=PREFIJO_LINEAS)
 
     return _render_ingreso(request, form, formset)
+
+
+def _datos_iniciales(request: HttpRequest) -> dict[str, object]:
+    """
+    Precarga el formulario con el auto que ya está en el sistema.
+
+    Al llegar desde la ficha del vehículo (``?patente=``) el auto y su dueño ya
+    se conocen: pedirlos de nuevo, o preguntar si se quieren cargar, es trabajo
+    repetido en el mesón. Una patente desconocida solo trae su número.
+    """
+    patente = normalize_patente(request.GET.get("patente") or "")
+    if not patente:
+        return {}
+
+    vehiculo = vehiculo_por_patente(patente)
+    if vehiculo is None:
+        return {"patente": patente}
+
+    return {
+        "patente": vehiculo.patente,
+        "marca": vehiculo.marca,
+        "cliente_nombre": vehiculo.cliente.nombre,
+        "cliente_telefono": vehiculo.cliente.telefono,
+        "cliente_email": vehiculo.cliente.email,
+    }
 
 
 def _render_ingreso(

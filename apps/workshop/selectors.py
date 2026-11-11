@@ -78,6 +78,20 @@ class VehiculoRegistrado:
         return self.vehiculo.descripcion_corta or "Sin datos de modelo"
 
 
+def vehiculo_por_patente(patente: str) -> Vehiculo | None:
+    """
+    El vehículo de esa patente con su dueño, si ya está registrado.
+
+    Se usa para precargar el registro de un ingreso con los datos del auto que
+    vuelve, sin pasar por el aviso del mesón.
+    """
+    normalizada = normalize_patente(patente)
+    if not normalizada:
+        return None
+
+    return Vehiculo.objects.with_cliente().filter(patente=normalizada).first()
+
+
 def vehiculo_ya_registrado(patente: str) -> VehiculoRegistrado | None:
     """
     El vehículo de esa patente, si ya está registrado.

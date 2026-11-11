@@ -195,6 +195,35 @@ class RegistroIngresoServiceTests(TestCase):
         self.assertEqual(segunda.cliente.pk, primera.cliente.pk)
         self.assertEqual(Cliente.objects.count(), 1)
 
+    def test_completa_el_nombre_que_falto_en_la_ficha_del_dueno(self) -> None:
+        primera = self.service.registrar(self._datos(cliente_nombre="", cliente_telefono=""))
+
+        segunda = self.service.registrar(self._datos(cliente_nombre="María Rojas"))
+
+        primera.cliente.refresh_from_db()
+        self.assertEqual(segunda.cliente.pk, primera.cliente.pk)
+        self.assertEqual(primera.cliente.nombre, "María Rojas")
+        self.assertEqual(Cliente.objects.count(), 1)
+
+    def test_completa_el_telefono_que_falto_en_la_ficha_del_dueno(self) -> None:
+        primera = self.service.registrar(self._datos(cliente_telefono=""))
+
+        segunda = self.service.registrar(self._datos())
+
+        primera.cliente.refresh_from_db()
+        self.assertEqual(segunda.cliente.pk, primera.cliente.pk)
+        self.assertEqual(primera.cliente.telefono, "56981234567")
+        self.assertEqual(Cliente.objects.count(), 1)
+
+    def test_no_pisa_el_nombre_ya_guardado_del_dueno(self) -> None:
+        primera = self.service.registrar(self._datos())
+
+        self.service.registrar(self._datos(cliente_nombre="Otro Nombre"))
+
+        primera.cliente.refresh_from_db()
+        self.assertEqual(primera.cliente.nombre, "María Rojas")
+        self.assertEqual(Cliente.objects.count(), 1)
+
     # -- Reglas de integridad ----------------------------------------------
 
     def test_rechaza_una_patente_con_formato_invalido(self) -> None:

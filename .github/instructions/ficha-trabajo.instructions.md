@@ -300,6 +300,12 @@ muestra una tarjeta con el auto, el dueño, cuántas visitas tiene y qué se le 
 la última vez, con dos atajos: **Ver la ficha completa** y **Cargar los datos del
 dueño**.
 
+- **Llegar desde la ficha del vehículo no pregunta nada**: `ingreso_create`
+  precarga patente, marca y datos del dueño
+  ([`selectors.vehiculo_por_patente`](../../apps/workshop/selectors.py)) y el
+  aviso no aparece, porque el auto y su dueño ya están a la vista. La tarjeta es
+  solo para el caso del mesón: la patente que se escribe a mano.
+
 - El endpoint ([`views.patente_estado`](../../apps/workshop/views.py)) responde
   JSON y se apoya en
   [`selectors.vehiculo_ya_registrado`](../../apps/workshop/selectors.py), que
@@ -314,6 +320,17 @@ dueño**.
 - El aviso espera 350 ms desde la última tecla, cancela la consulta anterior con
   `AbortController` (para que una respuesta vieja no pise a la nueva) y no
   consulta con menos de 4 caracteres.
+- Los datos que carga el atajo **pertenecen a la patente de la que salieron**: si
+  la operadora cambia la patente, se limpian la marca y los datos del dueño que
+  quedaron tal como los puso el atajo o el servidor, para que un auto nuevo no
+  herede el dueño del anterior. Lo que ella escribió a mano se respeta.
+- Una respuesta que llega después de cambiar la patente se descarta: la tarjeta
+  solo se dibuja si la patente sigue siendo la que se consultó. Al bajar de 4
+  caracteres se cancela la consulta en vuelo.
+- Si la ficha del dueño quedó sin nombre, teléfono o correo, la visita nueva
+  **completa esos huecos**; nunca reemplaza un dato ya escrito
+  (`RegistroIngresoService._completar_datos_del_dueno`), porque cambiar de dueño
+  es una decisión aparte.
 - Si el JavaScript no carga o el servidor no responde, la pantalla sigue
   funcionando igual: el servidor reutiliza el vehículo y el dueño por patente y
   teléfono al guardar.
@@ -404,14 +421,14 @@ class LineaFicha:
 
 | Archivo | Qué cubre |
 | --- | --- |
-| `test_registro_ingreso.py` | Línea con precio, código y detalle se guarda tal cual; `total` suma las líneas y **resta el descuento**; permite repetir trabajo e ingresar varias visitas el mismo día; servicio rechaza `tipo` fuera del catálogo, precio fuera de rango, ficha vacía y descuento mayor que el trabajo |
+| `test_registro_ingreso.py` | Línea con precio, código y detalle se guarda tal cual; `total` suma las líneas y **resta el descuento**; permite repetir trabajo e ingresar varias visitas el mismo día; completa el nombre o teléfono que faltaban en la ficha del dueño y **no pisa** los ya escritos; servicio rechaza `tipo` fuera del catálogo, precio fuera de rango, ficha vacía y descuento mayor que el trabajo |
 | `test_ficha_formset.py` | Formset válido/inválido, línea repetida permitida, línea sin precio permitida, línea con precio y sin trabajo rechazada, borrar línea, ficha sin líneas rechazada, descuento mayor que el total rechazado, tope de 30 líneas, **filas de sobra en blanco ignoradas** |
 | `test_edicion_ficha.py` | Editar agrega, modifica y borra líneas; el total del servidor manda sobre un total falso enviado por POST; no se puede cambiar la fecha; al rechazar no se pierde la ficha original |
 | `test_ficha_imprimible.py` | La vista responde 200, muestra patente, líneas usadas y total; **no** imprime kilometraje ni próxima mantención; usuario anónimo es redirigido al login |
 | `test_ficha_imprimible.py` (`EncabezadoDelTallerTests`) | El encabezado imprime dirección, ciudad y teléfono; sin datos configurados la ficha sale igual |
 | `test_ficha_imprimible.py` (`DatosTallerTests`) | `save()` dos veces deja una sola fila; `get_solo()` sin fila devuelve una instancia vacía |
 | `tests/helpers.py` | `payload_lineas(...)` arma los datos del formset, incluido el formulario de gestión |
-| `test_views.py` | Regresión de lo que ya funciona (§15): buscar por patente encuentra al cliente que vuelve, la ficha del vehículo muestra su historial y la ficha del cliente sus vehículos, con el ingreso nuevo registrado por formset |
+| `test_views.py` | Regresión de lo que ya funciona (§15): buscar por patente encuentra al cliente que vuelve, la ficha del vehículo muestra su historial y la ficha del cliente sus vehículos, con el ingreso nuevo registrado por formset; al llegar con `?patente=` de un auto conocido el formulario viene con marca y dueño precargados |
 | `test_aviso_patente.py` | El aviso de patente ya registrada: el selector (encuentra con separadores, no avisa con patente inválida, cuenta visitas, trae la última) y el endpoint JSON (dueño, visitas, última con su total, enlace a la ficha, patente desconocida, y que sin sesión no entregue datos del dueño) |
 
 ---
@@ -560,7 +577,7 @@ agrega dos pantallas nuevas.
 | **Búsqueda desde el celular del taller** con `?patente=` | [`buscar.html`](../../templates/workshop/buscar.html) | Sin cambios de contrato HTTP ni de URL |
 | **Ficha del vehículo con historial cronológico** | [`views.vehiculo_detail`](../../apps/workshop/views.py), [`_orden_card.html`](../../templates/workshop/partials/_orden_card.html) | Se mantiene; solo se agrega el **total** de cada visita (fase 7) |
 | **Ficha del cliente** con sus vehículos e historial | [`views.cliente_detail`](../../apps/workshop/views.py), `historial_de_cliente` | Sin cambios |
-| **Precarga de la patente** al registrar un auto ya conocido (`?patente=`) | [`views.ingreso_create`](../../apps/workshop/views.py) | Se mantiene igual |
+| **Precarga de la patente** al registrar un auto ya conocido (`?patente=`) | [`views.ingreso_create`](../../apps/workshop/views.py) | Se mantiene y se extiende: con el auto ya registrado también precarga marca y dueño |
 | **Reutilizar cliente y vehículo** en vez de duplicarlos (teléfono y patente normalizados) | `RegistroIngresoService._resolver_cliente` / `_resolver_vehiculo` en [`services/ingresos.py`](../../apps/workshop/services/ingresos.py) | El servicio se extiende, no se reescribe: el auto que ya vino suma una visita nueva |
 | **Varias visitas en un mismo día** | No se bloquean duplicados por fecha ni por kilometraje | Se permiten porque el kilometraje actual no se solicita |
 | **Acceso**: correo y contraseña, todo con sesión iniciada | `apps/accounts/` + `LoginRequiredMiddleware` | Las vistas nuevas quedan cubiertas por la misma política |
