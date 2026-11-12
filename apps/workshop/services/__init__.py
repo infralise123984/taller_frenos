@@ -9,6 +9,7 @@ from apps.workshop.services.ingresos import (
     build_actualizar_ficha_service,
     build_registro_ingreso_service,
     construir_items,
+    validar_ficha,
     validar_lineas,
 )
 from apps.workshop.services.taller import (
@@ -29,5 +30,6 @@ __all__ = [
     "build_actualizar_ficha_service",
     "build_registro_ingreso_service",
     "construir_items",
+    "validar_ficha",
     "validar_lineas",
 ]

@@ -83,6 +83,20 @@ class ResultadoIngreso:
 # ---------------------------------------------------------------------------
 
 
+def validar_ficha(lineas: tuple[LineaFicha, ...], observaciones: str = "") -> None:
+    """
+    Reglas de contenido de la ficha, antes de persistirla.
+
+    Una visita sin trabajos se acepta solo si deja una observación: es la
+    revisión que no terminó en trabajo. Sin trabajos y sin observación no hay
+    nada que registrar.
+    """
+    if not lineas and not observaciones.strip():
+        raise FichaVaciaError()
+
+    validar_lineas(lineas)
+
+
 def validar_lineas(lineas: tuple[LineaFicha, ...]) -> None:
     """
     Comprueba las líneas antes de persistirlas (denegación por defecto).
@@ -90,9 +104,6 @@ def validar_lineas(lineas: tuple[LineaFicha, ...]) -> None:
     Un descuento se escribe con precio negativo; ninguna otra línea puede
     restar, y el total de la ficha nunca puede quedar bajo cero.
     """
-    if not lineas:
-        raise FichaVaciaError()
-
     for linea in lineas:
         if linea.tipo not in TipoItemFicha.values:
             raise LineaFichaInvalidaError(f"El trabajo '{linea.tipo}' no existe en el catálogo.")
@@ -159,7 +170,7 @@ class RegistroIngresoService:
         if not is_valid_patente(patente):
             raise PatenteInvalidaError(patente)
 
-        validar_lineas(datos.lineas)
+        validar_ficha(datos.lineas, datos.observaciones)
 
         vehiculo_existente = self._vehiculos.filter(patente=patente).first()
 
@@ -321,7 +332,7 @@ class ActualizarFichaService:
         lineas: tuple[LineaFicha, ...],
         observaciones: str = "",
     ) -> OrdenTrabajo:
-        validar_lineas(lineas)
+        validar_ficha(lineas, observaciones)
 
         orden.observaciones = observaciones.strip()
         orden.save(update_fields=["observaciones", "updated_at"])

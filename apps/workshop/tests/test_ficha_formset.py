@@ -116,17 +116,18 @@ class LineaFichaFormSetTests(SimpleTestCase):
 
     # -- Reglas de la ficha -------------------------------------------------
 
-    def test_rechaza_una_ficha_sin_lineas(self) -> None:
+    def test_acepta_una_ficha_sin_lineas(self) -> None:
+        """Si no hay trabajos, la regla la aplica el dominio con la observación."""
         formset = self._formset()
 
-        self.assertFalse(formset.is_valid())
-        self.assertIn("Agrega al menos una línea", str(formset.non_form_errors()))
+        self.assertTrue(formset.is_valid(), formset.non_form_errors())
+        self.assertEqual(lineas_desde_formset(formset), ())
 
-    def test_rechaza_una_ficha_cuyas_lineas_se_borraron_todas(self) -> None:
+    def test_acepta_quitar_todas_las_lineas(self) -> None:
         formset = self._formset({"tipo": TipoItemFicha.PASTILLAS, "precio": 32_000, "DELETE": True})
 
-        self.assertFalse(formset.is_valid())
-        self.assertIn("Agrega al menos una línea", str(formset.non_form_errors()))
+        self.assertTrue(formset.is_valid(), formset.non_form_errors())
+        self.assertEqual(lineas_desde_formset(formset), ())
 
     def test_rechaza_un_monto_negativo_fuera_de_la_linea_de_descuento(self) -> None:
         formset = self._formset({"tipo": TipoItemFicha.PASTILLAS, "precio": -1_000})
@@ -192,11 +193,11 @@ class LineaFichaFormSetTests(SimpleTestCase):
         self.assertEqual(len(lineas), 1)
         self.assertEqual(lineas[0].tipo, TipoItemFicha.PASTILLAS)
 
-    def test_una_ficha_con_solo_filas_en_blanco_se_rechaza(self) -> None:
+    def test_una_ficha_con_solo_filas_en_blanco_queda_sin_lineas(self) -> None:
         formset = self._formset(blancas=2)
 
-        self.assertFalse(formset.is_valid())
-        self.assertIn("Agrega al menos una línea", str(formset.non_form_errors()))
+        self.assertTrue(formset.is_valid(), formset.non_form_errors())
+        self.assertEqual(lineas_desde_formset(formset), ())
 
     def test_varias_filas_en_blanco_no_afectan_a_las_lineas_llenas(self) -> None:
         formset = self._formset(

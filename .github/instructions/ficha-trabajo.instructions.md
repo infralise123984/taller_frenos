@@ -41,7 +41,7 @@ impresa** al cliente —con los datos del taller (dirección, ciudad y teléfono
 | Datos del taller | Se guardan en un **modelo editable desde el sistema** (admin de Django): **dirección, ciudad y teléfono**, sin re-desplegar. El nombre del taller va fijo en la plantilla. |
 | Ficha impresa, contenido | **Solo lo que se ve en el papel**: fecha, marca, patente, líneas **usadas** (no las 15 con espacios en blanco), total y observaciones. Sin kilometraje ni próxima mantención. |/
 | Fichas anteriores | **No hay**: la migración es solo de esquema, sin conversión de datos. |
-| Ficha sin líneas | **No se permite**: al menos una línea para guardar. |
+| Ficha sin trabajos | **Solo con una observación**: la revisión que no termina en trabajo se registra con la observación y sin líneas. Sin trabajos y sin observación no se guarda. |
 | Descuentos | **Sí existen**: se registran como una línea del tipo `Descuento` con **precio negativo**, que resta del total. |
 | Precio sugerido | **No** por ahora: el precio siempre se escribe a mano. |
 
@@ -245,6 +245,15 @@ una línea → completar precio / detalle / código**.
   Vale para el precio de cada línea y para los kilómetros de la próxima
   mantención.
 - Permitir la **misma línea repetida** (dos cambios de pastillas en el mismo auto).
+- **Si el guardado falla, el motivo aparece arriba**: el botón de guardar está al
+  final y la página vuelve al principio, así que el resumen "No se guardó la
+  ficha" lista cada error (de la visita y de cada línea) antes del primer campo,
+  y el bloque de trabajos repite el aviso en su contexto. Lo ya escrito sigue en
+  el formulario.
+- **Una ficha sin trabajos se guarda si deja una observación** (§2): es la
+  revisión que no terminó en trabajo, y el historial la muestra como "Sin detalle
+  registrado" con total en cero. Sin trabajos y sin observación no se guarda, y
+  el resumen de arriba dice exactamente eso.
 - Sin JavaScript la ficha sigue funcionando: el formset se envía completo y el
   servidor recalcula todo (§7).
 
@@ -252,10 +261,9 @@ una línea → completar precio / detalle / código**.
 
 - `forms.py`: `LineaFichaForm` (campos del §4.2) y `LineaFichaFormSet`
   (`formset_factory` con `extra=1`, `can_delete=True`, `validate_max=True` y
-  `max_num=MAX_LINEAS_FICHA`). El mínimo de una línea **no** se pide con
-  `validate_min`, sino en `BaseLineaFichaFormSet.clean`, para dar el mensaje con
-  las palabras del taller ("Agrega al menos una línea a la ficha") en vez del
-  genérico de Django.
+  `max_num=MAX_LINEAS_FICHA`). `BaseLineaFichaFormSet.clean` solo cuida el total
+  no negativo; la regla de "al menos un trabajo o una observación" vive en el
+  dominio (`validar_ficha`), que es el único que conoce las dos partes.
 - El prefijo del formset vive en `PREFIJO_LINEAS` (en `forms.py`), porque lo usan
   la vista, las plantillas y el JavaScript.
 - `IngresoRapidoForm` deja de tener `trabajos` (MultipleChoiceField) y
@@ -372,12 +380,13 @@ class LineaFicha:
 
 - El **total se calcula en el servidor** al leer la ficha; nunca se acepta un
   total enviado desde el navegador.
-- `validar_lineas(...)` es una función pura que se ejecuta antes de tocar la base
-  de datos y aplica las reglas con excepciones de dominio: ficha sin líneas
-  (`FichaVaciaError`), trabajo fuera del catálogo o monto negativo fuera de
-  `Descuento` (`LineaFichaInvalidaError`) y total bajo cero
-  (`TotalFichaNegativoError`). Denegación por defecto: el formulario valida lo
-  mismo, y el servicio no confía en el formulario.
+- `validar_ficha(lineas, observaciones)` es una función pura que se ejecuta antes
+  de tocar la base de datos: sin trabajos **y** sin observación lanza
+  `FichaVaciaError`; después delega en `validar_lineas(...)`, que aplica trabajo
+  fuera del catálogo o monto negativo fuera de `Descuento`
+  (`LineaFichaInvalidaError`) y total bajo cero (`TotalFichaNegativoError`).
+  Denegación por defecto: el formulario cuida lo que ve, y el servicio no confía
+  en el formulario.
 - `construir_items(...)` traduce las líneas a filas sin guardar nada; los dos
   servicios la comparten en vez de duplicar el armado de la línea.
 - `RegistroIngresoService` registra la visita completa y `ActualizarFichaService`
@@ -421,14 +430,14 @@ class LineaFicha:
 
 | Archivo | Qué cubre |
 | --- | --- |
-| `test_registro_ingreso.py` | Línea con precio, código y detalle se guarda tal cual; `total` suma las líneas y **resta el descuento**; permite repetir trabajo e ingresar varias visitas el mismo día; completa el nombre o teléfono que faltaban en la ficha del dueño y **no pisa** los ya escritos; servicio rechaza `tipo` fuera del catálogo, precio fuera de rango, ficha vacía y descuento mayor que el trabajo |
-| `test_ficha_formset.py` | Formset válido/inválido, línea repetida permitida, línea sin precio permitida, línea con precio y sin trabajo rechazada, borrar línea, ficha sin líneas rechazada, descuento mayor que el total rechazado, tope de 30 líneas, **filas de sobra en blanco ignoradas** |
-| `test_edicion_ficha.py` | Editar agrega, modifica y borra líneas; el total del servidor manda sobre un total falso enviado por POST; no se puede cambiar la fecha; al rechazar no se pierde la ficha original |
+| `test_registro_ingreso.py` | Línea con precio, código y detalle se guarda tal cual; `total` suma las líneas y **resta el descuento**; permite repetir trabajo e ingresar varias visitas el mismo día; completa el nombre o teléfono que faltaban en la ficha del dueño y **no pisa** los ya escritos; guarda una ficha con solo observaciones y rechaza la que no trae ni trabajos ni observación; servicio rechaza `tipo` fuera del catálogo, precio fuera de rango y descuento mayor que el trabajo |
+| `test_ficha_formset.py` | Formset válido/inválido, línea repetida permitida, línea sin precio permitida, línea con precio y sin trabajo rechazada, borrar línea, ficha sin líneas aceptada por el formset (la regla la aplica el dominio), descuento mayor que el total rechazado, tope de 30 líneas, **filas de sobra en blanco ignoradas** |
+| `test_edicion_ficha.py` | Editar agrega, modifica y borra líneas; dejar la ficha con solo observaciones; borrar líneas y observaciones se rechaza; el total del servidor manda sobre un total falso enviado por POST; no se puede cambiar la fecha; al rechazar no se pierde la ficha original; el motivo del rechazo se muestra arriba del formulario |
 | `test_ficha_imprimible.py` | La vista responde 200, muestra patente, líneas usadas y total; **no** imprime kilometraje ni próxima mantención; usuario anónimo es redirigido al login |
 | `test_ficha_imprimible.py` (`EncabezadoDelTallerTests`) | El encabezado imprime dirección, ciudad y teléfono; sin datos configurados la ficha sale igual |
 | `test_ficha_imprimible.py` (`DatosTallerTests`) | `save()` dos veces deja una sola fila; `get_solo()` sin fila devuelve una instancia vacía |
 | `tests/helpers.py` | `payload_lineas(...)` arma los datos del formset, incluido el formulario de gestión |
-| `test_views.py` | Regresión de lo que ya funciona (§15): buscar por patente encuentra al cliente que vuelve, la ficha del vehículo muestra su historial y la ficha del cliente sus vehículos, con el ingreso nuevo registrado por formset; al llegar con `?patente=` de un auto conocido el formulario viene con marca y dueño precargados |
+| `test_views.py` | Regresión de lo que ya funciona (§15): buscar por patente encuentra al cliente que vuelve, la ficha del vehículo muestra su historial y la ficha del cliente sus vehículos, con el ingreso nuevo registrado por formset; al llegar con `?patente=` de un auto conocido el formulario viene con marca y dueño precargados; guarda una ficha con solo observaciones y, cuando no hay ni trabajos ni observación, el motivo se ve arriba del formulario |
 | `test_aviso_patente.py` | El aviso de patente ya registrada: el selector (encuentra con separadores, no avisa con patente inválida, cuenta visitas, trae la última) y el endpoint JSON (dueño, visitas, última con su total, enlace a la ficha, patente desconocida, y que sin sesión no entregue datos del dueño) |
 
 ---
@@ -437,8 +446,9 @@ class LineaFicha:
 
 - **Validación en el servidor**: tipo contra el enum, `precio` entero dentro de
   `±TOPE_PRECIO` (negativo solo en la línea `Descuento`, y **no** en `OTRO`),
-  largos máximos, entre 1 y 30 líneas por ficha, y **el total no puede quedar
-  negativo**: un descuento mayor que el trabajo se rechaza con un mensaje claro.
+  largos máximos, hasta 30 líneas por ficha (y ninguna solo si hay observación),
+  y **el total no puede quedar negativo**: un descuento mayor que el trabajo se
+  rechaza con un mensaje claro.
 - **Total autoritativo del servidor** (nunca del cliente).
 - **CSRF** en el POST del formset (Django ya lo exige) y **autorización**: la
   política global `LoginRequiredMiddleware` cubre las vistas nuevas; se agregan a
@@ -533,8 +543,8 @@ la ficha impresa cabe en una hoja.
    frecuente")?
 
 Resueltas: impresión con las líneas usadas nada más, sin fichas históricas que
-convertir, mínimo una línea por ficha, `Obra de Mano` como precio, descuentos como
-línea negativa y sin precio sugerido (§2).
+convertir, al menos un trabajo **o** una observación por ficha, `Obra de Mano` como
+precio, descuentos como línea negativa y sin precio sugerido (§2).
 
 ### 14.2 Trabajo pendiente de listar en las fases (no requiere decisión)
 

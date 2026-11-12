@@ -253,11 +253,20 @@ class RegistroIngresoServiceTests(TestCase):
 
     # -- Reglas de las líneas de la ficha ----------------------------------
 
-    def test_rechaza_una_ficha_sin_lineas(self) -> None:
+    def test_rechaza_una_ficha_sin_lineas_ni_observacion(self) -> None:
         with self.assertRaises(FichaVaciaError):
             self.service.registrar(self._datos(lineas=()))
 
         self.assertFalse(OrdenTrabajo.objects.exists())
+
+    def test_acepta_una_ficha_con_solo_observaciones(self) -> None:
+        resultado = self.service.registrar(
+            self._datos(lineas=(), observaciones="Revisión visual, sin trabajos.")
+        )
+
+        self.assertEqual(resultado.orden.items.count(), 0)
+        self.assertEqual(resultado.orden.total, 0)
+        self.assertEqual(resultado.orden.observaciones, "Revisión visual, sin trabajos.")
 
     def test_rechaza_un_trabajo_que_no_esta_en_el_catalogo(self) -> None:
         with self.assertRaises(LineaFichaInvalidaError):

@@ -19,11 +19,7 @@
   <form method="post" novalidate>
     {% csrf_token %}
 
-    {% if form.non_field_errors %}
-      <div class="mb-5 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-900">
-        {{ form.non_field_errors }}
-      </div>
-    {% endif %}
+    {% include "partials/_resumen_errores.html" with form=form formset=formset %}
 
     {% include "workshop/partials/_ficha_lineas.html" with formset=formset form=form catalogo=catalogo total=orden.total %}
 

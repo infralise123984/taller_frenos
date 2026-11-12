@@ -151,13 +151,29 @@ class EdicionFichaTests(TestCase):
         self.assertEqual(self.orden.fecha_ingreso, self.fecha)
         self.assertEqual(self.orden.kilometraje, 78_400)
 
-    def test_rechaza_dejar_la_ficha_sin_lineas_y_conserva_la_original(self) -> None:
+    def test_permite_dejar_la_ficha_con_solo_observaciones(self) -> None:
         respuesta = self.client.post(self._url(), self._payload())
 
+        self.assertRedirects(respuesta, reverse("workshop:vehiculo", args=["BJDF45"]))
+        self.assertEqual(self.orden.items.count(), 0)
+        self.assertEqual(self.orden.total, 0)
+        self.assertEqual(self.orden.observaciones, "Chirrido al frenar.")
+
+    def test_rechaza_borrar_las_lineas_y_tambien_las_observaciones(self) -> None:
+        respuesta = self.client.post(self._url(), self._payload(observaciones=""))
+
         self.assertEqual(respuesta.status_code, 200)
-        self.assertContains(respuesta, "Agrega al menos una línea")
+        self.assertContains(respuesta, "al menos un trabajo o una observación")
         self.assertEqual(self.orden.items.count(), 1)
         self.assertEqual(self.orden.total, 32_000)
+
+    def test_el_motivo_para_no_guardar_aparece_arriba_del_formulario(self) -> None:
+        respuesta = self.client.post(self._url(), self._payload(observaciones=""))
+        html = respuesta.content.decode()
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, "No se guardó la ficha")
+        self.assertLess(html.index("No se guardó la ficha"), html.index("Trabajos y precios"))
 
     def test_una_visita_inexistente_devuelve_404(self) -> None:
         respuesta = self.client.get(reverse("workshop:ficha_editar", args=[999_999]))

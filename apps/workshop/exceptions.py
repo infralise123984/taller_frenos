@@ -16,10 +16,10 @@ class PatenteInvalidaError(WorkshopDomainError):
 
 
 class FichaVaciaError(WorkshopDomainError):
-    """La ficha no tiene ninguna línea: no hay nada que cobrar ni que registrar."""
+    """La ficha no trae trabajos ni observación: no hay nada que registrar."""
 
     def __init__(self) -> None:
-        super().__init__("La ficha necesita al menos una línea.")
+        super().__init__("La ficha necesita al menos un trabajo o una observación.")
 
 
 class LineaFichaInvalidaError(WorkshopDomainError):

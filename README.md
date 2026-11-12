@@ -49,7 +49,7 @@ convertirse en un ERP ni en un sistema de facturación.
 | Historial | Cada visita queda ordenada cronológicamente con trabajos, repuestos, kilometraje y la recomendación de próxima mantención. |
 | Clientes | Un cliente puede tener varios vehículos. Patente y teléfono se normalizan para evitar fichas duplicadas. |
 | Registro de ingresos | Alta rápida de patente, marca, dueño y orden de trabajo en una sola pasada. |
-| Ficha de trabajo | Líneas tipificadas con precio, código y marca del repuesto; descuento como línea negativa; total calculado en el servidor. |
+| Ficha de trabajo | Líneas tipificadas con precio, código y marca del repuesto; descuento como línea negativa; total calculado en el servidor. Una ficha con solo observaciones también se guarda; sin trabajos ni observación, el motivo queda visible arriba del formulario. |
 | Corrección e impresión | Las fichas guardadas se pueden editar y se imprimen con los datos del taller. |
 | Acceso interno | Sin registro público: invitaciones de un solo uso, login por correo, límite de intentos y 2FA TOTP opcional. |
 | PWA | Instalable desde el navegador; guarda solo recursos estáticos y nunca datos del taller. |

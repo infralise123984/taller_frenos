@@ -232,7 +232,12 @@ class LineaFichaForm(forms.Form):
 
 
 class BaseLineaFichaFormSet(forms.BaseFormSet):
-    """Reglas de la ficha completa: al menos una línea y un total que no sea negativo."""
+    """
+    Reglas de las líneas: un total que no sea negativo.
+
+    Que la ficha traiga al menos un trabajo o una observación lo decide el
+    dominio (`validar_ficha`), que es el único que conoce las dos partes.
+    """
 
     def add_fields(self, form, index):
         super().add_fields(form, index)
@@ -250,8 +255,6 @@ class BaseLineaFichaFormSet(forms.BaseFormSet):
         lineas: list[LineaFichaForm] = [
             form for form in self.forms if form.cleaned_data and not form.cleaned_data.get("DELETE")
         ]
-        if not lineas:
-            raise forms.ValidationError("Agrega al menos una línea a la ficha.")
 
         total = sum(form.cleaned_data.get("precio") or 0 for form in lineas)
         if total < 0:

@@ -270,15 +270,55 @@ class RegistroIngresoTests(BaseAutenticadaTests):
         self.assertContains(detalle, "Cliente sin nombre")
         self.assertNotContains(detalle, "wa.me/")
 
-    def test_rechaza_un_ingreso_sin_ninguna_linea(self) -> None:
+    def test_rechaza_un_ingreso_sin_lineas_ni_observacion(self) -> None:
         respuesta = self.client.post(
             reverse("workshop:ingreso_create"),
-            self._payload(**payload_lineas()),
+            self._payload(observaciones="", **payload_lineas()),
         )
 
         self.assertEqual(respuesta.status_code, 200)
-        self.assertContains(respuesta, "Agrega al menos una línea")
+        self.assertContains(respuesta, "al menos un trabajo o una observación")
         self.assertFalse(Vehiculo.objects.filter(patente="WXYZ99").exists())
+
+    def test_guarda_un_ingreso_con_solo_observaciones(self) -> None:
+        respuesta = self.client.post(
+            reverse("workshop:ingreso_create"),
+            self._payload(observaciones="Revisión visual, sin trabajos.", **payload_lineas()),
+        )
+
+        self.assertRedirects(respuesta, reverse("workshop:vehiculo", args=["WXYZ99"]))
+        orden = OrdenTrabajo.objects.get(vehiculo__patente="WXYZ99")
+        self.assertEqual(orden.items.count(), 0)
+        self.assertEqual(orden.total, 0)
+        self.assertEqual(orden.observaciones, "Revisión visual, sin trabajos.")
+
+    def test_el_motivo_para_no_guardar_aparece_arriba_del_formulario(self) -> None:
+        """El botón está al final: si el aviso queda abajo, parece que no pasó nada."""
+        respuesta = self.client.post(
+            reverse("workshop:ingreso_create"),
+            self._payload(observaciones="", **payload_lineas()),
+        )
+        html = respuesta.content.decode()
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, "No se guardó la ficha")
+        self.assertContains(respuesta, "al menos un trabajo o una observación")
+        self.assertLess(html.index("No se guardó la ficha"), html.index("Trabajos y precios"))
+        self.assertEqual(OrdenTrabajo.objects.count(), 0)
+
+    def test_el_formulario_sin_errores_no_muestra_el_resumen(self) -> None:
+        respuesta = self.client.get(reverse("workshop:ingreso_create"))
+
+        self.assertNotContains(respuesta, "No se guardó la ficha")
+
+    def test_el_resumen_nombra_la_linea_que_quedo_sin_trabajo(self) -> None:
+        respuesta = self.client.post(
+            reverse("workshop:ingreso_create"),
+            self._payload(**payload_lineas({"tipo": "", "precio": 5_000})),
+        )
+
+        self.assertEqual(respuesta.status_code, 200)
+        self.assertContains(respuesta, "Línea 1 · Trabajo: Elige el trabajo de esta línea.")
 
     def test_registra_el_ingreso_aunque_sobre_una_fila_en_blanco(self) -> None:
         respuesta = self.client.post(
